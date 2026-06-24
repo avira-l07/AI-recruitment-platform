@@ -1,17 +1,20 @@
 import json
+import os
 import re
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pypdf import PdfReader
+from docx import Document
 
 from app.core.database import get_db
 from app.models.resume import Resume
 from app.models.candidate import Candidate
-from app.models.user import User
 from app.ai.career_advisor import get_career_suggestions
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
 
+UPLOAD_DIR = "uploads"
+ALLOWED_EXTENSIONS = [".pdf", ".docx"]
 
 SKILL_KEYWORDS = [
     "Python", "Java", "JavaScript", "TypeScript", "C++", "C#", "C",
@@ -29,17 +32,46 @@ EDUCATION_KEYWORDS = [
 ]
 
 
-def extract_text_from_pdf(file) -> str:
-    """Reads all text out of an uploaded PDF file."""
-    reader = PdfReader(file)
-    text = ""
+def get_file_extension(filename: str) -> str:
+    if not filename:
+        return ""
+    return os.path.splitext(filename)[1].lower()
 
-    for page in reader.pages:
-        page_text = page.extract_text()
-        if page_text:
-            text += page_text + "\n"
 
-    return text
+def extract_text_from_pdf(file_path: str) -> str:
+    try:
+        reader = PdfReader(file_path)
+        text = ""
+
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
+
+        return text
+    except Exception as error:
+        print(f"PDF extraction failed: {error}")
+        return ""
+
+
+def extract_text_from_docx(file_path: str) -> str:
+    try:
+        document = Document(file_path)
+        paragraphs = [paragraph.text for paragraph in document.paragraphs if paragraph.text.strip()]
+        return "\n".join(paragraphs)
+    except Exception as error:
+        print(f"DOCX extraction failed: {error}")
+        return ""
+
+
+def extract_text_from_file(file_path: str, extension: str) -> str:
+    if extension == ".pdf":
+        return extract_text_from_pdf(file_path)
+
+    if extension == ".docx":
+        return extract_text_from_docx(file_path)
+
+    return ""
 
 
 def extract_skills(text: str) -> list:
@@ -51,7 +83,7 @@ def extract_skills(text: str) -> list:
         if re.search(pattern, text, re.IGNORECASE):
             found.append(skill)
 
-    return found
+    return list(dict.fromkeys(found))
 
 
 def extract_education(text: str) -> str:
@@ -66,9 +98,6 @@ def extract_education(text: str) -> str:
 
 
 def extract_section(text: str, section_names: list) -> str:
-    """
-    Looks for a section header and grabs text until next all-caps style header.
-    """
     lines = text.split("\n")
     capture = False
     captured_lines = []
@@ -128,21 +157,28 @@ def upload_resume(
             detail="Candidate profile not found for this user."
         )
 
-    file_location = f"uploads/{file.filename}"
+    extension = get_file_extension(file.filename)
 
-    with open(file_location, "wb+") as file_object:
+    if extension not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF and DOCX resume files are allowed."
+        )
+
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+    safe_filename = os.path.basename(file.filename)
+    file_location = os.path.join(UPLOAD_DIR, safe_filename)
+
+    with open(file_location, "wb") as file_object:
         file_object.write(file.file.read())
 
-    try:
-        with open(file_location, "rb") as f:
-            text = extract_text_from_pdf(f)
-    except Exception:
-        text = ""
+    text = extract_text_from_file(file_location, extension)
 
     if not text.strip():
         parsed_data = {
             "skills": [],
-            "education": "Could not read resume text. Please upload a text-based PDF.",
+            "education": "Could not read resume text. Please upload a text-based PDF or DOCX file.",
             "experience": "Not specified",
             "certifications": "Not specified",
             "projects": "Not specified",
@@ -153,12 +189,16 @@ def upload_resume(
     resume = db.query(Resume).filter(Resume.candidate_id == candidate.id).first()
 
     if resume:
-        resume.file_name = file.filename
+        resume.file_name = safe_filename
+        resume.file_path = file_location
+        resume.extracted_text = text
         resume.parsed_data = json.dumps(parsed_data)
     else:
         resume = Resume(
             candidate_id=candidate.id,
-            file_name=file.filename,
+            file_name=safe_filename,
+            file_path=file_location,
+            extracted_text=text,
             parsed_data=json.dumps(parsed_data)
         )
         db.add(resume)
