@@ -18,11 +18,7 @@ app = FastAPI(title="AI Recruitment Platform API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "https://ai-recruitment-frontend-wg2t.onrender.com",
-    ],
+    allow_origin_regex=r"https://.*\.onrender\.com",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
