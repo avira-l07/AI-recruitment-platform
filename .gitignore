@@ -1,0 +1,26 @@
+# Node / React
+recruitment-client/node_modules/
+recruitment-client/dist/
+recruitment-client/.env
+
+# Python / FastAPI
+recruitment-api/venv/
+recruitment-api/__pycache__/
+recruitment-api/app/__pycache__/
+recruitment-api/app/**/__pycache__/
+recruitment-api/.env
+
+# Database / uploads
+recruitment-api/uploads/
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache
+.pytest_cache/
+.cache/
+
+# OS / Editor
+.vscode/
+.DS_Store
+Thumbs.db
