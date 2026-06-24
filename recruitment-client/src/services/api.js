@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'https://ai-recruitment-platform-z76q.onrender.com',
+  baseURL: 'https://ai-recruitment-platform-7bet.onrender.com',
 });
 
 api.interceptors.request.use(
