@@ -4,8 +4,10 @@ sqlalchemy
 python-multipart
 pydantic[email]
 passlib[bcrypt]
+bcrypt==4.0.1
 python-jose[cryptography]
 pypdf
 python-docx
 aiofiles
-google-genai
+python-dotenv
+python-3.11.9
