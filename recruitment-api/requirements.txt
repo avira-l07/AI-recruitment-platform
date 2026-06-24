@@ -10,4 +10,3 @@ pypdf
 python-docx
 aiofiles
 python-dotenv
-python-3.11.9
