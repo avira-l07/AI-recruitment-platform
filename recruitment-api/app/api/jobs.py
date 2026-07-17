@@ -9,7 +9,7 @@ from app.models.candidate import Candidate
 from app.schemas.job_schema import JobCreate, JobResponse
 from app.ai.job_matcher import calculate_hybrid_match
 from app.ai.job_intelligence import analyze_job_description
-from app.api.dependencies import get_current_user, require_roles, verify_candidate_ownership
+from app.core.dependencies import get_current_user, require_roles, verify_candidate_ownership
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 

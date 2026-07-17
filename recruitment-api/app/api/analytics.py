@@ -6,7 +6,7 @@ from app.models.candidate import Candidate
 from app.models.job import Job
 from app.models.match_score import MatchScore
 from app.models.resume import Resume
-from app.api.dependencies import require_roles
+from app.core.dependencies import require_roles
 from collections import Counter
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])

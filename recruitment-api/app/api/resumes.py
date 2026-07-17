@@ -20,7 +20,7 @@ from app.ai.career_advisor import (
 from app.utils.file_handler import is_allowed_file, get_file_extension, MAX_UPLOAD_SIZE_BYTES
 from app.utils.pdf_extractor import extract_text_from_pdf
 from app.utils.docx_extractor import extract_text_from_docx
-from app.api.dependencies import get_current_user, require_roles, verify_candidate_ownership
+from app.core.dependencies import get_current_user, require_roles, verify_candidate_ownership
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
 UPLOAD_DIR = "uploads"

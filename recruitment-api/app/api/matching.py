@@ -11,7 +11,7 @@ from app.models.job import Job
 from app.models.user import User
 from app.api.jobs import safe_split
 from app.ai.job_matcher import calculate_hybrid_match
-from app.api.dependencies import get_current_user, require_roles, verify_candidate_ownership
+from app.core.dependencies import get_current_user, require_roles, verify_candidate_ownership
 
 router = APIRouter(prefix="/matching", tags=["matching"])
 
