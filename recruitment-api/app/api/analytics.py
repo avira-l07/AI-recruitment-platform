@@ -42,6 +42,11 @@ def _pipeline(db: Session) -> dict:
     }
 
 
+@router.get("/pipeline")
+def get_pipeline(db: Session = Depends(get_db), current_user = Depends(require_roles(["hr"]))):
+    return _pipeline(db)
+
+
 @router.get("/overview")
 def get_overview(db: Session = Depends(get_db), current_user = Depends(require_roles(["hr"]))):
     total_candidates = db.query(Candidate).count()

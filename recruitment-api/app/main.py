@@ -7,11 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base, SessionLocal
 
-import app.models.user
-import app.models.candidate
-import app.models.resume
-import app.models.job
-import app.models.match_score
+import app.models
 
 from app.api import auth, candidates, resumes, jobs as jobs_api, matching, analytics, ai, activity, notifications, search
 
@@ -50,8 +46,8 @@ app.include_router(resumes.router)
 app.include_router(jobs_api.router)
 app.include_router(matching.router)
 app.include_router(analytics.router)
-app.include_router(activity.router, prefix="/api")
-app.include_router(ai.router, prefix="/api")
+app.include_router(activity.router)
+app.include_router(ai.router)
 app.include_router(notifications.router)
 app.include_router(search.router)
 

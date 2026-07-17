@@ -25,6 +25,8 @@ from app.models.job import Job  # noqa: E402
 def client():
     with TestClient(app) as test_client:
         yield test_client
+    from app.core.database import engine
+    engine.dispose()
     TEST_DB.unlink(missing_ok=True)
 
 
