@@ -13,7 +13,7 @@ import app.models.resume
 import app.models.job
 import app.models.match_score
 
-from app.api import auth, candidates, resumes, jobs as jobs_api, matching, analytics
+from app.api import auth, candidates, resumes, jobs as jobs_api, matching, analytics, ai, activity
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(
-    title="AI Recruitment Intelligence Platform API",
+    title="AI Recruitment Platform API",
     version="2.0.0",
     lifespan=lifespan
 )
@@ -50,6 +50,8 @@ app.include_router(resumes.router)
 app.include_router(jobs_api.router)
 app.include_router(matching.router)
 app.include_router(analytics.router)
+app.include_router(activity.router, prefix="/api")
+app.include_router(ai.router, prefix="/api")
 
 @app.get("/")
 def root():
