@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import authService from '../../services/authService';
 import matchingService from '../../services/matchingService';
 
 // Custom design components
@@ -35,6 +34,7 @@ const Candidates = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [candidates, setCandidates] = useState([]);
+  const [feedback, setFeedback] = useState('');
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -97,13 +97,17 @@ const Candidates = () => {
   };
 
   const handleStatusUpdate = async (id, status) => {
+    const previous = candidates;
+    setCandidates(prev => prev.map(c => c.id === id ? { ...c, status } : c));
+    setActiveCandidate(prev => prev && prev.id === id ? { ...prev, status } : prev);
     try {
       await matchingService.updateMatchStatus(id, status);
-      setCandidates(prev => prev.map(c => c.id === id ? { ...c, status } : c));
-      setActiveCandidate(prev => prev && prev.id === id ? { ...prev, status } : prev);
+      setFeedback(`Application moved to ${status}.`);
     } catch (err) {
-      console.error('Failed to update status', err);
+      setCandidates(previous);
+      setFeedback(err.response?.data?.detail || 'Status update failed. Previous state was restored.');
     }
+    window.setTimeout(() => setFeedback(''), 3500);
   };
 
   const openDrawer = async (cand) => {
@@ -153,7 +157,8 @@ const Candidates = () => {
         }
       />
 
-      <ReviewAlert title="Note:" message="AI source details represent evaluations completed in current session batches." type="success" />
+      <ReviewAlert title="AI transparency" message="Every application displays the recorded Local AI, Gemini, Hybrid, or fallback source." type="success" />
+      {feedback && <ReviewAlert title="Update" message={feedback} type={feedback.includes('failed') ? 'warning' : 'success'} />}
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: 'var(--space-4)', marginBottom: 'var(--space-5)', flexWrap: 'wrap', alignItems: 'center', backgroundColor: 'var(--color-surface)', padding: 'var(--space-4)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
@@ -165,7 +170,7 @@ const Candidates = () => {
           onChange={(e) => setStatusFilter(e.target.value)} 
           style={{ padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', outline: 'none', backgroundColor: 'var(--color-surface)', fontSize: 'var(--font-sm)', cursor: 'pointer' }}
         >
-          {['All', 'Pending', 'Shortlisted', 'Rejected'].map(s => <option key={s} value={s}>{s}</option>)}
+          {['All', 'Applied', 'AI Review', 'Manual Review', 'Shortlisted', 'Interview', 'Offer', 'Hired', 'Rejected', 'Withdrawn'].map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 'var(--font-xs)' }}>
           <span>Min Score: {minScore}%</span>
@@ -211,7 +216,7 @@ const Candidates = () => {
                   {score}%
                 </td>
                 <td style={{ padding: 'var(--space-4) var(--space-5)', fontSize: 'var(--font-xs)', color: 'var(--color-muted)' }}>
-                  {cand.ai_source === 'gemini_text_enhanced' || cand.aiSource === 'gemini' ? 'Gemini AI' : cand.aiSource === 'hybrid' ? 'Hybrid AI' : 'Local AI'}
+                  {cand.aiSource === 'hybrid' ? 'Hybrid AI' : cand.aiSource === 'gemini' ? 'Gemini AI' : cand.aiSource === 'local_fallback' ? 'Local Fallback' : 'Local AI'}
                 </td>
                 <td style={{ padding: 'var(--space-4) var(--space-5)' }}>
                   <span style={{ fontSize: 'var(--font-xs)', fontWeight: 'var(--weight-semibold)', color: normalizeStatus(cand) === 'Shortlisted' ? 'var(--color-success)' : normalizeStatus(cand) === 'Rejected' ? 'var(--color-danger)' : 'var(--color-warning)' }}>
