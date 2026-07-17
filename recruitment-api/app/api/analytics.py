@@ -6,46 +6,93 @@ from app.models.candidate import Candidate
 from app.models.job import Job
 from app.models.match_score import MatchScore
 from app.models.resume import Resume
+from app.models.application import Application
+from app.models.ai_analysis import AIAnalysisJob
 from app.core.dependencies import require_roles
 from collections import Counter
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
+
+def _pipeline(db: Session) -> dict:
+    statuses = {
+        name: db.query(Application).filter(Application.status == name).count()
+        for name in [
+            "Applied",
+            "AI Review",
+            "Manual Review",
+            "Shortlisted",
+            "Interview",
+            "Offer",
+            "Hired",
+            "Rejected",
+            "Withdrawn",
+        ]
+    }
+    return {
+        "applied": db.query(Application).count(),
+        "ai_review": db.query(MatchScore).count(),
+        "manual_review": statuses["Manual Review"],
+        "shortlisted": statuses["Shortlisted"],
+        "interview": statuses["Interview"],
+        "offer": statuses["Offer"],
+        "hired": statuses["Hired"],
+        "rejected": statuses["Rejected"],
+        "withdrawn": statuses["Withdrawn"],
+    }
+
+
 @router.get("/overview")
 def get_overview(db: Session = Depends(get_db), current_user = Depends(require_roles(["hr"]))):
     total_candidates = db.query(Candidate).count()
     total_jobs = db.query(Job).count()
-    shortlisted = db.query(MatchScore).filter(MatchScore.status == "Shortlisted").count()
-    rejected = db.query(MatchScore).filter(MatchScore.status == "Rejected").count()
-    
+    active_jobs = db.query(Job).filter(Job.status == "Active").count()
+    total_applications = db.query(Application).count()
+
     avg_score_raw = db.query(func.avg(MatchScore.score)).scalar()
-    average_match_score = round(avg_score_raw, 1) if avg_score_raw else 0.0
-    
+    average_match_score = round(float(avg_score_raw), 1) if avg_score_raw is not None else 0.0
+    avg_confidence_raw = db.query(func.avg(MatchScore.confidence_score)).scalar()
+    average_confidence = round(float(avg_confidence_raw), 1) if avg_confidence_raw is not None else None
+
     strong = db.query(MatchScore).filter(MatchScore.score >= 70).count()
     moderate = db.query(MatchScore).filter(MatchScore.score >= 40, MatchScore.score < 70).count()
     weak = db.query(MatchScore).filter(MatchScore.score < 40).count()
-    
-    all_candidates = db.query(Candidate.skills).all()
+
     skill_counter = Counter()
-    for row in all_candidates:
-        if row[0]:
-            skills = [s.strip() for s in row[0].split(',') if s.strip()]
-            skill_counter.update(skills)
-            
-    top_skills = [skill for skill, count in skill_counter.most_common(8)]
-    
+    for (skills_text,) in db.query(Candidate.skills).all():
+        if skills_text:
+            skill_counter.update(s.strip() for s in skills_text.split(",") if s.strip())
+
+    pipeline = _pipeline(db)
+    hybrid_analyses = db.query(MatchScore).filter(MatchScore.ai_source == "hybrid").count()
+    fallback_analyses = db.query(MatchScore).filter(MatchScore.fallback_active.is_(True)).count()
+    gemini_failures = db.query(AIAnalysisJob).filter(
+        AIAnalysisJob.gemini_status.in_(["failed", "rate_limited", "authentication_failed", "unavailable"])
+    ).count()
+    completed_analyses = db.query(AIAnalysisJob).filter(
+        AIAnalysisJob.current_stage.in_(["completed", "fallback_completed"])
+    ).count()
+
     return {
         "total_candidates": total_candidates,
         "total_jobs": total_jobs,
-        "shortlisted_candidates": shortlisted,
-        "rejected_candidates": rejected,
+        "active_jobs": active_jobs,
+        "total_applications": total_applications,
+        "shortlisted_candidates": pipeline["shortlisted"],
+        "rejected_candidates": pipeline["rejected"],
+        "interviews": pipeline["interview"],
+        "offers": pipeline["offer"],
+        "hired": pipeline["hired"],
+        "manual_review": pipeline["manual_review"],
+        "ai_analyses_completed": completed_analyses,
+        "hybrid_analyses": hybrid_analyses,
+        "fallback_analyses": fallback_analyses,
+        "gemini_failures": gemini_failures,
         "average_match_score": average_match_score,
-        "top_skills": top_skills,
-        "score_distribution": {
-            "strong": strong,
-            "moderate": moderate,
-            "weak": weak
-        }
+        "average_confidence": average_confidence,
+        "top_skills": [skill for skill, _ in skill_counter.most_common(8)],
+        "score_distribution": {"strong": strong, "moderate": moderate, "weak": weak},
+        "pipeline": pipeline,
     }
 
 @router.get("/ai-status")
