@@ -4,12 +4,13 @@ from pydantic import BaseModel
 from datetime import datetime
 from typing import List
 from app.core.database import get_db
+from app.core.time import utc_now
 from app.models.job import Job
 from app.models.candidate import Candidate
 from app.schemas.job_schema import JobCreate, JobResponse
 from app.ai.job_matcher import calculate_hybrid_match
 from app.ai.job_intelligence import analyze_job_description
-from app.core.dependencies import get_current_user, require_roles, verify_candidate_ownership
+from app.core.dependencies import get_current_user, require_roles, require_candidate, verify_candidate_ownership
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -49,12 +50,7 @@ def analyze_job(payload: JobAnalyzeRequest, current_user = Depends(require_roles
     return analyze_job_description(payload.title, payload.description, payload.required_skills, payload.experience_level)
 
 
-@router.get("/recommended/{user_id}")
-def get_recommended_jobs(user_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
-    verify_candidate_ownership(user_id, current_user)
-    candidate = db.query(Candidate).filter(Candidate.user_id == user_id).first()
-    if not candidate:
-        raise HTTPException(status_code=404, detail="Candidate profile not found.")
+def _recommended_for_candidate(candidate: Candidate, db: Session):
     active_jobs = db.query(Job).filter(Job.status == "Active").all()
     recommended = []
     for job in active_jobs:
@@ -81,10 +77,32 @@ def get_recommended_jobs(user_id: int, db: Session = Depends(get_db), current_us
                 "semantic_matches": result["semantic_matches"],
                 "missing_skills": result["missing_skills"],
                 "aiSemanticAnalysis": result["ai_semantic_analysis"],
-                "aiSource": result.get("ai_source", "hybrid_local_ai"),
+                "aiSource": result.get("ai_source", "local_ai"),
+                "fallbackReason": result.get("fallback_reason"),
             })
     recommended.sort(key=lambda j: j["score"], reverse=True)
     return recommended
+
+
+@router.get("/recommended/me")
+def get_my_recommended_jobs(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_candidate),
+):
+    candidate = db.query(Candidate).filter(Candidate.user_id == current_user.id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate profile not found.")
+    return _recommended_for_candidate(candidate, db)
+
+
+@router.get("/recommended/{user_id}")
+def get_recommended_jobs(user_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    if current_user.role != "hr" and current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="You cannot access another candidate's recommendations.")
+    candidate = db.query(Candidate).filter(Candidate.user_id == user_id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate profile not found.")
+    return _recommended_for_candidate(candidate, db)
 
 
 @router.post("", response_model=JobResponse)
@@ -128,7 +146,7 @@ def close_job(job_id: int, payload: CloseJobRequest, db: Session = Depends(get_d
         raise HTTPException(status_code=404, detail="Job not found")
     job.status = "Closed"
     job.closed_reason = payload.reason
-    job.closed_at = datetime.utcnow()
+    job.closed_at = utc_now()
     db.commit()
     db.refresh(job)
     publish_event(db, "job_closed", None, current_user.id, {

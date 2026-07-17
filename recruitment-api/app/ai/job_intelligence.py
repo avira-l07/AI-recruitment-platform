@@ -1,6 +1,6 @@
 from typing import Dict
 from app.ai.skill_extractor import extract_skills, normalize_skill_list
-from app.ai.gemini_client import call_gemini_json
+from app.ai.gemini_client import call_gemini_json, get_gemini_health
 
 
 def analyze_job_description(title: str, description: str, required_skills: str, experience_level: str = "") -> Dict:
@@ -19,7 +19,7 @@ def analyze_job_description(title: str, description: str, required_skills: str, 
         category = "Software"
 
     base = {
-        "source": "hybrid_local_ai",
+        "source": "local_ai",
         "jobCategory": category,
         "coreSkills": required[:8],
         "niceToHaveSkills": [s for s in extracted if s not in required][:6],
@@ -41,5 +41,9 @@ Experience level: {experience_level}
         for key in ["jobCategory", "niceToHaveSkills", "difficultyLevel", "interviewFocus", "jobQualityWarnings", "aiSummary"]:
             if ai.get(key):
                 base[key] = ai[key]
-        base["source"] = "gemini_text_enhanced"
+        base["source"] = "hybrid"
+    else:
+        health = get_gemini_health()
+        if health.get("configured"):
+            base["source"] = "local_fallback"
     return base
