@@ -6,6 +6,11 @@ const analyticsService = {
     return response.data;
   },
 
+  getPipeline: async () => {
+    const response = await api.get('/analytics/pipeline');
+    return response.data;
+  },
+
   getAiStatus: async () => {
     const response = await api.get('/analytics/ai-status');
     return response.data;

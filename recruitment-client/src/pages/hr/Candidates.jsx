@@ -135,7 +135,7 @@ const Candidates = () => {
       <div className="hr-page">
         <ActionHeader title="Candidates" subtitle="Search and review applicants" />
         <div style={{ backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-6)' }}>
-          <LoadingSkeleton count={4} />
+          <LoadingSkeleton type="grid" count={4} />
         </div>
       </div>
     );
