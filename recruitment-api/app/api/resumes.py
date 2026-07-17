@@ -2,6 +2,8 @@ import json
 import os
 import threading
 from datetime import datetime, timezone
+from uuid import uuid4
+from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -21,9 +23,11 @@ from app.utils.file_handler import is_allowed_file, get_file_extension, MAX_UPLO
 from app.utils.pdf_extractor import extract_text_from_pdf
 from app.utils.docx_extractor import extract_text_from_docx
 from app.core.dependencies import get_current_user, require_roles, verify_candidate_ownership
+from app.core.rate_limit import rate_limiter
+from app.services.notification_service import notify_all_hr
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
-UPLOAD_DIR = "uploads"
+UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "uploads")).resolve()
 concurrency_lock = threading.Lock()
 
 
@@ -55,14 +59,24 @@ def classify_gemini_error(error: Exception) -> tuple[str, str]:
     return "failed", "AI suggestions generation failed. Please try again."
 
 
-@router.post("/upload")
+def _validate_signature(content: bytes, extension: str) -> bool:
+    if extension == ".pdf":
+        return content.startswith(b"%PDF")
+    if extension == ".docx":
+        return content.startswith(b"PK\x03\x04")
+    return False
+
+
+@router.post("/upload", dependencies=[Depends(rate_limiter.dependency(10, 3600, "resume_upload"))])
 def upload_resume(
     user_id: int = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    if current_user.role != "hr" and user_id != current_user.id:
+    if current_user.role == "candidate":
+        user_id = current_user.id
+    elif current_user.role != "hr" and user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to upload resume for this user")
 
     candidate = _candidate_by_user(db, user_id)
@@ -74,17 +88,28 @@ def upload_resume(
     if not is_allowed_file(file.filename):
         raise HTTPException(status_code=422, detail="Only PDF and DOCX resumes are allowed.")
 
-    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    extension = get_file_extension(file.filename)
     content = file.file.read()
     if len(content) > MAX_UPLOAD_SIZE_BYTES:
         raise HTTPException(status_code=413, detail="Resume file is too large. Maximum allowed size is 5 MB.")
     if len(content) < 200:
         raise HTTPException(status_code=422, detail="Resume file is too small or empty. Upload a complete resume.")
+    if not _validate_signature(content, extension):
+        raise HTTPException(status_code=422, detail="The uploaded file content does not match its extension.")
 
-    safe_name = f"resume_user_{user_id}_{abs(hash(file.filename))}{get_file_extension(file.filename)}"
-    file_location = os.path.join(UPLOAD_DIR, safe_name)
-    with open(file_location, "wb") as file_object:
-        file_object.write(content)
+    # Prevent path traversal by resolving UPLOAD_DIR as a Path and using uuid name
+    upload_dir_path = Path(UPLOAD_DIR).resolve()
+    upload_dir_path.mkdir(parents=True, exist_ok=True)
+    
+    stored_name = f"{uuid4().hex}{extension}"
+    file_location = upload_dir_path / stored_name
+    
+    # Check that file_location is actually inside upload_dir_path to prevent path traversal
+    if not os.path.abspath(file_location).startswith(os.path.abspath(upload_dir_path)):
+        raise HTTPException(status_code=400, detail="Invalid file destination path.")
+        
+    file_location.write_bytes(content)
+    file_location_str = str(file_location)
 
     # Local processing only
     from app.utils.activity_logger import publish_event
@@ -93,7 +118,7 @@ def upload_resume(
     })
     db.commit()
 
-    text = _extract_text(file_location)
+    text = _extract_text(file_location_str)
     parsed_data = parse_resume(text)
 
     publish_event(db, "resume_parsed", candidate.id, user_id, {
@@ -104,6 +129,7 @@ def upload_resume(
     quality = validate_resume_quality(parsed_data, text)
 
     if not quality["accepted"]:
+        file_location.unlink(missing_ok=True)
         raise HTTPException(
             status_code=422,
             detail={
@@ -131,7 +157,7 @@ def upload_resume(
 
     resume_fields = {
         "file_name": file.filename,
-        "file_path": file_location,
+        "file_path": file_location_str,
         "extracted_text": text[:20000],
         "parsed_data": json.dumps(parsed_data),
         "resume_hash": new_hash,
@@ -162,6 +188,12 @@ def upload_resume(
         })
 
     if resume:
+        # Delete old file to save space and keep tidy
+        try:
+            if resume.file_path and os.path.exists(resume.file_path):
+                os.remove(resume.file_path)
+        except Exception:
+            pass
         for k, v in resume_fields.items():
             setattr(resume, k, v)
     else:
@@ -180,11 +212,19 @@ def upload_resume(
     db.commit()
     db.refresh(resume)
 
-    from app.utils.activity_logger import publish_event
     publish_event(db, "local_analysis_completed", candidate.id, user_id, {
         "quality_score": quality.get("quality_score", 0),
         "status": resume.status
     }, resume_id=resume.id)
+    
+    notify_all_hr(
+        db,
+        title="New Resume Uploaded",
+        message=f"Candidate {candidate.full_name or candidate.email} has uploaded a new resume.",
+        notification_type="resume_upload",
+        related_entity_type="candidate",
+        related_entity_id=candidate.id,
+    )
     db.commit()
 
     return {"message": "Resume uploaded successfully", "parsedResult": parsed_data, "resumeQuality": quality, "aiInsights": ai_insights}

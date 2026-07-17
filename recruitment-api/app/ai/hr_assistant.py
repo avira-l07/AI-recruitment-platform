@@ -2,7 +2,7 @@ import json
 from typing import Dict, List
 from app.ai.interview_generator import generate_interview_questions
 from app.ai.roadmap_generator import build_learning_roadmap
-from app.ai.gemini_client import call_gemini_json
+from app.ai.gemini_client import call_gemini_json, get_gemini_health
 
 
 def get_fit_label(score: int) -> str:
@@ -56,7 +56,8 @@ def build_local_hr_insight(role: str, score: int, direct_matches: List[str], sem
         "interviewQuestions": generate_interview_questions(role, direct_matches, missing_skills),
         "riskFlags": risks,
         "recommendation": recommendation,
-        "aiSource": "hybrid_local_ai",
+        "aiSource": "local_ai",
+        "fallbackReason": None,
     }
 
 
@@ -86,7 +87,12 @@ Return JSON only with exactly these keys:
 """
     ai = call_gemini_json(prompt)
     if not ai:
-        return base
+        health = get_gemini_health()
+        output = dict(base)
+        if health.get("configured"):
+            output["aiSource"] = "local_fallback"
+            output["fallbackReason"] = health.get("last_error_message") or "Gemini was unavailable."
+        return output
 
     # Guardrails: keep controlled values from backend.
     cleaned = dict(base)
@@ -94,7 +100,8 @@ Return JSON only with exactly these keys:
         if key in ai and ai[key]:
             cleaned[key] = ai[key]
     cleaned["fitLabel"] = base.get("fitLabel")
-    cleaned["aiSource"] = "gemini_text_enhanced"
+    cleaned["aiSource"] = "hybrid"
+    cleaned["fallbackReason"] = None
     return cleaned
 
 

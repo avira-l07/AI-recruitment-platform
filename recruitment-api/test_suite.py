@@ -213,7 +213,7 @@ def test_resume_upload_makes_zero_automatic_gemini_calls(monkeypatch):
     headers = get_auth_headers(user_id=1, role="candidate")
     
     import io
-    dummy_file = io.BytesIO(b"This is dummy text data inside file stream" * 15)
+    dummy_file = io.BytesIO(b"%PDF-1.4\n" + b"This is dummy text data inside file stream" * 15)
     
     response = client.post(
         "/resumes/upload",
@@ -622,7 +622,7 @@ def test_event_persistence_and_logging(monkeypatch):
     
     # Upload resume (should trigger resume_uploaded and resume_analyzed events)
     import io
-    dummy_file = io.BytesIO(b"This is dummy text data inside file stream" * 15)
+    dummy_file = io.BytesIO(b"%PDF-1.4\n" + b"This is dummy text data inside file stream" * 15)
     response = client.post(
         "/resumes/upload",
         data={"user_id": 1},
