@@ -11,3 +11,4 @@ python-docx
 aiofiles
 python-dotenv
 google-genai
+alembic
