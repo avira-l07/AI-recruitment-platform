@@ -311,7 +311,7 @@ def career_suggestions(user_id: int, db: Session = Depends(get_db), current_user
     }
 
 
-@router.post("/{user_id}/career-suggestions/generate")
+@router.post("/{user_id}/career-suggestions/generate", dependencies=[Depends(rate_limiter.dependency(20, 3600, "gemini_generation"))])
 def generate_suggestions(
     user_id: int,
     force: bool = False,
