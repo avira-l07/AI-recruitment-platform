@@ -1,0 +1,28 @@
+:root {
+  /* System Brand Colors */
+  --color-primary: #3654E0;
+  --color-secondary: #6D5DFC;
+  --color-accent: #4F46E5;
+  
+  /* System State Colors */
+  --color-success: #15803D;
+  --color-warning: #B45309;
+  --color-danger: #B42318;
+  
+  /* System Surfaces and Backgrounds */
+  --color-background: #F7F8FC;
+  --color-surface: #FFFFFF;
+  --color-sidebar: #12182B;
+  --color-card: #FFFFFF;
+  --color-border: #E2E8F0;
+  
+  /* System Text Colors */
+  --color-text: #172033;
+  --color-muted: #64748B;
+  
+  /* State Soft Backgrounds */
+  --color-success-bg: #EAF7EA;
+  --color-warning-bg: #FFF4DE;
+  --color-danger-bg: #FEECEC;
+  --color-accent-soft: #EEF2FF;
+}
