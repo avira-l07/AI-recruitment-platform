@@ -1,8 +1,7 @@
 import api from './api';
 
 const jobService = {
-  createJob: async (jobData, createdBy) => {
-    if (!createdBy) throw new Error('created_by user ID is missing. Please login again.');
+  createJob: async (jobData) => {
     const payload = {
       title: jobData.title,
       description: jobData.description,
@@ -10,7 +9,7 @@ const jobService = {
       experience_level: jobData.experienceLevel,
       education_requirement: jobData.educationRequirement,
     };
-    const response = await api.post('/jobs', payload, { params: { created_by: createdBy } });
+    const response = await api.post('/jobs', payload);
     return response.data;
   },
   getAllJobs: async (activeOnly = false) => {
@@ -39,9 +38,9 @@ const jobService = {
     return response.data;
   },
   getRecommendedJobs: async (userId) => {
-    const response = await api.get(`/jobs/recommended/${userId}`);
+    const response = await api.get(userId ? `/jobs/recommended/${userId}` : '/jobs/recommended/me');
     return response.data;
-  }
+  },
 };
 
 export default jobService;
