@@ -25,7 +25,7 @@ from app.utils.pdf_extractor import extract_text_from_pdf
 from app.utils.docx_extractor import extract_text_from_docx
 from app.core.dependencies import get_current_user, require_roles, verify_candidate_ownership
 from app.core.rate_limit import rate_limiter
-from app.services.notification_service import notify_all_hr
+from app.services.notification_service import notify_all_hr, create_notification
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "uploads")).resolve()
@@ -218,14 +218,25 @@ def upload_resume(
         "status": resume.status
     }, resume_id=resume.id)
     
-    notify_all_hr(
-        db,
-        title="New Resume Uploaded",
-        message=f"Candidate {candidate.full_name or candidate.email} has uploaded a new resume.",
-        notification_type="resume_upload",
-        related_entity_type="candidate",
-        related_entity_id=candidate.id,
+    # Identify HR owners of jobs the candidate has already applied to
+    hr_ids = (
+        db.query(Job.created_by)
+        .join(Application, Application.job_id == Job.id)
+        .filter(Application.candidate_id == candidate.id)
+        .distinct()
+        .all()
     )
+    for (hr_user_id,) in hr_ids:
+        if hr_user_id:
+            create_notification(
+                db,
+                hr_user_id,
+                title="New Resume Uploaded",
+                message=f"Candidate {candidate.full_name or candidate.email} has uploaded a new resume.",
+                notification_type="resume_upload",
+                related_entity_type="candidate",
+                related_entity_id=candidate.id,
+            )
     db.commit()
 
     return {"message": "Resume uploaded successfully", "parsedResult": parsed_data, "resumeQuality": quality, "aiInsights": ai_insights}

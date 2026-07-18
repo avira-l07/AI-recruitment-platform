@@ -208,8 +208,25 @@ def update_match_status(
     if job.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="You are not authorized to update this application status.")
 
-    if application.status in {"Hired", "Rejected", "Withdrawn"} and payload.status != application.status:
-        raise HTTPException(status_code=409, detail=f"Cannot change status of a completed/terminal '{application.status}' application.")
+    VALID_TRANSITIONS = {
+        "Applied": {"AI Review", "Manual Review", "Shortlisted", "Rejected", "Withdrawn"},
+        "AI Review": {"Manual Review", "Shortlisted", "Rejected", "Withdrawn"},
+        "Manual Review": {"Shortlisted", "Rejected", "Withdrawn"},
+        "Shortlisted": {"Interview", "Rejected", "Withdrawn"},
+        "Interview": {"Offer", "Rejected", "Withdrawn"},
+        "Offer": {"Hired", "Rejected", "Withdrawn"},
+        "Hired": set(),
+        "Rejected": set(),
+        "Withdrawn": set(),
+    }
+
+    if payload.status != application.status:
+        allowed = VALID_TRANSITIONS.get(application.status, set())
+        if payload.status not in allowed:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Invalid status transition from '{application.status}' to '{payload.status}'."
+            )
 
     application.status = payload.status
     application.reviewed_by = current_user.id
