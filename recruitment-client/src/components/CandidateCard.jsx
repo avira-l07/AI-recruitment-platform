@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, CheckCircle2, User } from 'lucide-react';
+import { Sparkles, User } from 'lucide-react';
 
 const CandidateCard = ({ 
   name, 
@@ -16,152 +16,108 @@ const CandidateCard = ({
 }) => {
   const getAiSourceBadge = () => {
     const source = (aiSource || '').toLowerCase();
-    let label = 'Local AI';
-    let bg = '#F1F5F9';
-    let text = 'var(--color-muted)';
+    let label = 'LOCAL AI';
 
-    if (source.includes('gemini_text_enhanced') || source === 'gemini') {
-      label = 'Gemini AI';
-      bg = '#F5F3FF';
-      text = 'var(--color-secondary)';
-    } else if (source.includes('hybrid')) {
-      label = 'Hybrid AI';
-      bg = 'var(--color-accent-soft)';
-      text = 'var(--color-primary)';
+    if (source === 'hybrid') {
+      label = 'HYBRID';
+    } else if (source === 'gemini') {
+      label = 'GEMINI';
+    } else if (source === 'local_fallback') {
+      label = 'LOCAL FALLBACK';
+    } else if (source === 'local_ai' || source === 'local') {
+      label = 'LOCAL AI';
+    } else {
+      label = source.toUpperCase() || 'LOCAL AI';
     }
 
     return (
-      <span 
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '4px',
-          padding: '4px 10px',
-          backgroundColor: bg,
-          color: text,
-          fontSize: '11px',
-          fontWeight: 'var(--weight-semibold)',
-          borderRadius: 'var(--radius-pill)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.02em',
-          fontFamily: 'var(--font-mono)'
-        }}
-      >
+      <span className="hr-source-badge">
         <Sparkles size={10} />
         {label}
       </span>
     );
   };
 
-  const getScoreColor = () => {
-    if (score >= 75) return 'var(--color-success)';
-    if (score >= 50) return 'var(--color-warning)';
-    return 'var(--color-danger)';
+  const getScoreColorClass = () => {
+    if (score >= 75) return 'high';
+    if (score >= 50) return 'mid';
+    return 'low';
   };
 
+  const displayConfidence = confidence && confidence !== 'not available' ? confidence : 'Not available';
+
   return (
-    <div 
-      className="hr-candidate-detail-card"
-      style={{
-        backgroundColor: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-lg)',
-        padding: 'var(--space-5)',
-        boxShadow: 'var(--elevation-1)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-4)',
-        transition: 'transform var(--transition-fast), box-shadow var(--transition-fast)'
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-2px)';
-        e.currentTarget.style.boxShadow = 'var(--elevation-2)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'none';
-        e.currentTarget.style.boxShadow = 'var(--elevation-1)';
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justify: 'center', width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--color-accent-soft)', color: 'var(--color-primary)' }}>
-            <User size={18} />
-          </div>
-          <div>
-            <h4 style={{ margin: 0, fontSize: 'var(--font-base)', fontWeight: 'var(--weight-semibold)', color: 'var(--color-text)' }}>{name}</h4>
-            <span style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)' }}>{role}</span>
-          </div>
+    <div className="hr-candidate-card">
+      <div className="hr-candidate-header-row">
+        <div className="hr-candidate-avatar-container">
+          <User size={20} />
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-          <span style={{ fontSize: 'var(--font-2xl)', fontWeight: 'var(--weight-bold)', color: getScoreColor(), lineHeight: 1 }}>
-            {score}%
-          </span>
-          <span style={{ fontSize: '10px', color: 'var(--color-muted)', textTransform: 'uppercase', fontWeight: 'var(--weight-medium)' }}>
-            Match Score
-          </span>
+        <div className="hr-candidate-meta">
+          <div className="hr-candidate-name-row">
+            <h4 className="hr-candidate-name">{name}</h4>
+            <span className={`hr-candidate-score ${getScoreColorClass()}`}>
+              {score}%
+            </span>
+          </div>
+          <span className="hr-candidate-role">{role}</span>
         </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)', padding: 'var(--space-2) 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          {getAiSourceBadge()}
-          <span style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)' }}>
-            Confidence: <b>{confidence}</b>
-          </span>
-        </div>
+      <div className="hr-candidate-status-row">
+        {getAiSourceBadge()}
+        <span className="hr-confidence-text">
+          Confidence: <b className="hr-confidence-val">{displayConfidence}</b>
+        </span>
         {status && (
-          <span style={{ fontSize: 'var(--font-xs)', fontWeight: 'var(--weight-semibold)', color: 'var(--color-primary)' }}>
+          <span className="hr-candidate-status-label">
             {status}
           </span>
         )}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+      <div className="hr-skills-container">
         {matchedSkills.length > 0 && (
-          <div>
-            <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Matched Skills</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-1.5)' }}>
+          <div className="hr-skills-block">
+            <h4>Matched Skills</h4>
+            <div className="hr-skills-list">
               {matchedSkills.map(s => (
-                <span key={s} style={{ backgroundColor: 'var(--color-success-bg)', color: 'var(--color-success)', fontSize: 'var(--font-xs)', padding: '2px 8px', borderRadius: 'var(--radius-sm)', fontWeight: 'var(--weight-medium)' }}>{s}</span>
+                <span key={s} className="hr-skill-badge matched">{s}</span>
               ))}
             </div>
           </div>
         )}
 
         {missingSkills.length > 0 && (
-          <div>
-            <div style={{ fontSize: '11px', color: 'var(--color-muted)', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Missing Skills</div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--space-1.5)' }}>
+          <div className="hr-skills-block">
+            <h4>Missing Skills</h4>
+            <div className="hr-skills-list">
               {missingSkills.map(s => (
-                <span key={s} style={{ backgroundColor: 'var(--color-danger-bg)', color: 'var(--color-danger)', fontSize: 'var(--font-xs)', padding: '2px 8px', borderRadius: 'var(--radius-sm)', fontWeight: 'var(--weight-medium)' }}>{s}</span>
+                <span key={s} className="hr-skill-badge missing">{s}</span>
               ))}
             </div>
           </div>
         )}
       </div>
 
-      <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'auto', paddingTop: 'var(--space-2)' }}>
+      <div className="hr-candidate-actions">
         <button 
           onClick={onAiSummary} 
-          style={{ flex: 1, border: '1px solid var(--color-border)', background: 'none', borderRadius: 'var(--radius-md)', padding: '8px', fontSize: 'var(--font-xs)', fontWeight: 'var(--weight-medium)', color: 'var(--color-text)', cursor: 'pointer' }}
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          className="hr-card-btn secondary"
+          type="button"
         >
-          AI Summary
+          AI summary
         </button>
         <button 
           onClick={onReview} 
-          style={{ flex: 1, border: '1px solid var(--color-border)', background: 'none', borderRadius: 'var(--radius-md)', padding: '8px', fontSize: 'var(--font-xs)', fontWeight: 'var(--weight-medium)', color: 'var(--color-text)', cursor: 'pointer' }}
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#F8FAFC'}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+          className="hr-card-btn secondary"
+          type="button"
         >
           Review
         </button>
         <button 
           onClick={onShortlist} 
-          style={{ flex: 1, border: 'none', backgroundColor: 'var(--color-primary)', color: '#FFFFFF', borderRadius: 'var(--radius-md)', padding: '8px', fontSize: 'var(--font-xs)', fontWeight: 'var(--weight-medium)', cursor: 'pointer' }}
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2c46c2'}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--color-primary)'}
+          className="hr-card-btn primary"
+          type="button"
         >
           Shortlist
         </button>
@@ -171,3 +127,4 @@ const CandidateCard = ({
 };
 
 export default CandidateCard;
+

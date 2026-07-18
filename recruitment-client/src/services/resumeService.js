@@ -26,8 +26,8 @@ const resumeService = {
     }
   },
 
-  getResume: async (userId) => {
-    const response = await api.get(`/resumes/${userId}`);
+  getResume: async (userId, config = {}) => {
+    const response = await api.get(`/resumes/${userId}`, config);
     const data = response.data;
     const parsedObj = typeof data.parsed_data === 'string' ? JSON.parse(data.parsed_data || '{}') : (data.parsed_data || {});
     return { ...data, ...parsedObj, parsed_data: parsedObj };
@@ -46,6 +46,18 @@ const resumeService = {
   getResumeIntelligence: async (userId) => {
     const response = await api.get(`/resumes/${userId}/intelligence`);
     return response.data;
+  },
+
+  getResumeFile: async (userId, config = {}) => {
+    const response = await api.get(`/resumes/${userId}/download`, {
+      responseType: 'blob',
+      ...config
+    });
+    return {
+      blob: response.data,
+      contentType: response.headers['content-type'] || response.headers['Content-Type'],
+      contentDisposition: response.headers['content-disposition'] || response.headers['Content-Disposition']
+    };
   },
 
   getAIStatus: async () => {

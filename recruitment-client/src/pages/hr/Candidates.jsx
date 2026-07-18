@@ -6,7 +6,8 @@ import matchingService from '../../services/matchingService';
 import ActionHeader from '../../components/ActionHeader';
 import SearchBar from '../../components/SearchBar';
 import CandidateGrid from '../../components/CandidateGrid';
-import CandidateDrawer from '../../components/CandidateDrawer';
+import AiSummaryDrawer from '../../components/AiSummaryDrawer';
+import ResumeReviewDrawer from '../../components/ResumeReviewDrawer';
 import EmptyState from '../../components/EmptyState';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import ErrorState from '../../components/ErrorState';
@@ -43,11 +44,12 @@ const Candidates = () => {
 
   // Selection & Detail Drawer states
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [activeCandidate, setActiveCandidate] = useState(null);
+  
+  const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [activeDrawer, setActiveDrawer] = useState(null); // 'ai-summary', 'resume-review', null
   const [drawerDetail, setDrawerDetail] = useState([]);
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [drawerError, setDrawerError] = useState(null);
-  const [noteDraft, setNoteDraft] = useState('');
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -99,7 +101,7 @@ const Candidates = () => {
   const handleStatusUpdate = async (id, status) => {
     const previous = candidates;
     setCandidates(prev => prev.map(c => c.id === id ? { ...c, status } : c));
-    setActiveCandidate(prev => prev && prev.id === id ? { ...prev, status } : prev);
+    setSelectedCandidate(prev => prev && prev.id === id ? { ...prev, status } : prev);
     try {
       await matchingService.updateMatchStatus(id, status);
       setFeedback(`Application moved to ${status}.`);
@@ -110,16 +112,20 @@ const Candidates = () => {
     window.setTimeout(() => setFeedback(''), 3500);
   };
 
-  const openDrawer = async (cand) => {
-    setActiveCandidate(cand);
+  const openAiSummary = async (cand) => {
+    setSelectedCandidate(cand);
+    setActiveDrawer('ai-summary');
     setDrawerDetail([]);
     setDrawerError(null);
-    setNoteDraft('');
+    setDrawerLoading(true);
 
     const lookupId = cand?.user_id ?? cand?.userId ?? cand?.candidate_user_id ?? cand?.candidateId;
-    if (!lookupId) return;
+    if (!lookupId) {
+      setDrawerError('Candidate profile mismatch.');
+      setDrawerLoading(false);
+      return;
+    }
 
-    setDrawerLoading(true);
     try {
       const matches = await matchingService.getCandidateMatches(lookupId);
       setDrawerDetail(Array.isArray(matches) ? matches : []);
@@ -128,6 +134,19 @@ const Candidates = () => {
     } finally {
       setDrawerLoading(false);
     }
+  };
+
+  const openResumeReview = (cand) => {
+    setSelectedCandidate(cand);
+    setActiveDrawer('resume-review');
+  };
+
+  const closeDrawer = () => {
+    setSelectedCandidate(null);
+    setActiveDrawer(null);
+    setDrawerDetail([]);
+    setDrawerError(null);
+    setDrawerLoading(false);
   };
 
   if (loading) {
@@ -225,7 +244,8 @@ const Candidates = () => {
                 </td>
                 <td style={{ padding: 'var(--space-4) var(--space-5)' }}>
                   <div style={{ display: 'flex', gap: '6px' }}>
-                    <button onClick={() => openDrawer(cand)} style={{ border: '1px solid var(--color-border)', background: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: 'var(--font-xs)' }}>View</button>
+                    <button onClick={() => openAiSummary(cand)} style={{ border: '1px solid var(--color-border)', background: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: 'var(--font-xs)' }}>AI Summary</button>
+                    <button onClick={() => openResumeReview(cand)} style={{ border: '1px solid var(--color-border)', background: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: 'var(--font-xs)' }}>Review</button>
                     <button onClick={() => handleStatusUpdate(cand.id, 'Shortlisted')} style={{ backgroundColor: 'var(--color-primary)', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: 'var(--font-xs)' }}>Shortlist</button>
                   </div>
                 </td>
@@ -239,16 +259,24 @@ const Candidates = () => {
         )}
       </div>
 
-      <CandidateDrawer 
-        isOpen={!!activeCandidate}
-        onClose={() => setActiveCandidate(null)}
-        candidate={activeCandidate}
+      {/* AI Summary Drawer */}
+      <AiSummaryDrawer
+        isOpen={activeDrawer === 'ai-summary'}
+        onClose={closeDrawer}
+        candidate={selectedCandidate}
         detail={drawerDetail}
         loading={drawerLoading}
         error={drawerError}
         onStatusUpdate={handleStatusUpdate}
-        noteDraft={noteDraft}
-        onNoteChange={setNoteDraft}
+        onRetry={() => selectedCandidate && openAiSummary(selectedCandidate)}
+      />
+
+      {/* Resume Review Drawer */}
+      <ResumeReviewDrawer
+        isOpen={activeDrawer === 'resume-review'}
+        onClose={closeDrawer}
+        candidate={selectedCandidate}
+        onStatusUpdate={handleStatusUpdate}
       />
     </div>
   );

@@ -1,0 +1,738 @@
+/* Premium HR Dashboard Styling */
+
+.hr-dashboard-container {
+  background-color: #F5F3EE;
+  min-height: calc(100vh - 70px);
+  color: #07152E;
+  width: 100%;
+  padding: 32px 40px;
+}
+
+.hr-dashboard-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Welcome heading */
+.hr-dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.hr-dashboard-welcome h1 {
+  margin: 0 0 4px 0;
+  font-size: 22px;
+  font-weight: 700;
+  font-family: 'Space Grotesk', sans-serif;
+  color: #07152E;
+}
+
+.hr-dashboard-welcome p {
+  margin: 0;
+  font-size: 13px;
+  color: #74809A;
+}
+
+.hr-dashboard-refresh-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #FFFFFF;
+  border: 1px solid #E8E0D5;
+  color: #07152E;
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(7, 21, 46, 0.04);
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+
+.hr-dashboard-refresh-btn:hover {
+  background-color: #F8FAFC;
+  box-shadow: 0 4px 10px rgba(7, 21, 46, 0.06);
+}
+
+.hr-dashboard-refresh-btn svg {
+  color: #74809A;
+}
+
+/* Warnings and Notices */
+.hr-dashboard-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Statistics KPIs Grid */
+.hr-dashboard-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.hr-kpi-card {
+  background-color: #FFFFFF;
+  border: 1px solid #E8E0D5;
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(7, 21, 46, 0.03);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.25s, box-shadow 0.25s;
+}
+
+.hr-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(7, 21, 46, 0.05);
+}
+
+.hr-kpi-label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #74809A;
+  margin-bottom: 12px;
+}
+
+.hr-kpi-value {
+  font-size: 32px;
+  font-weight: 700;
+  font-family: 'Space Grotesk', sans-serif;
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+
+.hr-kpi-value.blue { color: #3B55E6; }
+.hr-kpi-value.green { color: #00A83B; }
+.hr-kpi-value.warning { color: #B96900; }
+
+.hr-kpi-desc {
+  font-size: 11.5px;
+  color: #74809A;
+}
+
+/* Top Matches Carousel Wrapper */
+.hr-carousel-section {
+  background-color: #FFFFFF;
+  border: 1px solid #E8E0D5;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(7, 21, 46, 0.03);
+}
+
+.hr-carousel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.hr-carousel-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #07152E;
+}
+
+.hr-carousel-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hr-carousel-page-indicator {
+  font-size: 12px;
+  font-weight: 600;
+  color: #74809A;
+}
+
+.hr-carousel-nav-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.hr-carousel-nav-btn {
+  background-color: #FFFFFF;
+  border: 1px solid #E8E0D5;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #07152E;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.hr-carousel-nav-btn:hover:not(:disabled) {
+  background-color: #F8FAFC;
+  color: #3B55E6;
+}
+
+.hr-carousel-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Carousel Candidate Card Layout */
+.hr-candidate-card {
+  border: 1px solid #F0EEE5;
+  border-radius: 16px;
+  padding: 20px;
+  background-color: #FFFFFF;
+  position: relative;
+  transition: box-shadow 0.2s;
+}
+
+.hr-candidate-card:focus-within {
+  border-color: #3B55E6;
+}
+
+.hr-candidate-header-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.hr-candidate-avatar-container {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: #EEF2FF;
+  border: 1px solid #E0E7FF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #3B55E6;
+  flex-shrink: 0;
+}
+
+.hr-candidate-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.hr-candidate-name-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.hr-candidate-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #07152E;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hr-candidate-role {
+  font-size: 13px;
+  color: #74809A;
+  margin-top: 2px;
+}
+
+.hr-candidate-score {
+  font-size: 24px;
+  font-weight: 700;
+  font-family: 'Space Grotesk', sans-serif;
+  line-height: 1;
+}
+
+.hr-candidate-score.high { color: #00A83B; }
+.hr-candidate-score.mid { color: #B96900; }
+.hr-candidate-score.low { color: #DC2626; }
+
+/* Status Row */
+.hr-candidate-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background-color: #F8FAFC;
+  border: 1px solid #F1F5F9;
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 20px;
+}
+
+.hr-source-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background-color: #F3F1EA;
+  color: #07152E;
+  padding: 4px 10px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hr-confidence-text {
+  font-size: 11px;
+  color: #74809A;
+}
+
+.hr-confidence-val {
+  font-weight: 600;
+  color: #07152E;
+}
+
+.hr-candidate-status-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #3B55E6;
+  margin-left: auto;
+}
+
+/* Skills section */
+.hr-skills-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.hr-skills-block h4 {
+  margin: 0 0 10px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: #74809A;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.hr-skills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hr-skill-badge {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 8px;
+}
+
+.hr-skill-badge.matched {
+  background-color: #EAF7EA;
+  color: #2E7D32;
+  border: 1px solid rgba(46, 125, 50, 0.15);
+}
+
+.hr-skill-badge.missing {
+  background-color: #FEECEC;
+  color: #B42318;
+  border: 1px solid rgba(180, 35, 24, 0.15);
+}
+
+/* Candidate Card Buttons */
+.hr-candidate-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.hr-card-btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.hr-card-btn.secondary {
+  background-color: #FFFFFF;
+  border: 1px solid #E8E0D5;
+  color: #07152E;
+}
+
+.hr-card-btn.secondary:hover {
+  background-color: #F8FAFC;
+}
+
+.hr-card-btn.primary {
+  background-color: #3B55E6;
+  border: 1px solid transparent;
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(59, 85, 230, 0.15);
+}
+
+.hr-card-btn.primary:hover {
+  background-color: #2D43C4;
+  box-shadow: 0 6px 16px rgba(59, 85, 230, 0.25);
+}
+
+.hr-card-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Bottom Grid Layout */
+.hr-dashboard-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+/* Ask RecruitAI chatbot widget */
+.hr-ask-ai-panel {
+  background-color: #0A0E14;
+  border: 1px solid rgba(0, 168, 59, 0.2);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  height: 380px;
+}
+
+.hr-ask-ai-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.hr-ask-ai-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hr-ask-ai-status {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background-color: rgba(0, 168, 59, 0.15);
+  color: #00A83B;
+  border: 1px solid rgba(0, 168, 59, 0.2);
+}
+
+/* Messages area */
+.hr-chat-history {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-right: 4px;
+}
+
+.hr-chat-message {
+  display: flex;
+  flex-direction: column;
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.hr-chat-message.assistant {
+  background-color: #12161F;
+  border: 1px solid #1F2532;
+  color: #D1D5DB;
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+}
+
+.hr-chat-message.user {
+  background-color: #3B55E6;
+  color: #FFFFFF;
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+}
+
+.hr-chat-source-badge {
+  font-size: 8px;
+  font-weight: 700;
+  color: #00A83B;
+  margin-top: 4px;
+  align-self: flex-start;
+  text-transform: uppercase;
+}
+
+/* Suggested chips */
+.hr-chat-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.hr-chat-suggested-btn {
+  background-color: #12161F;
+  border: 1px solid #1F2532;
+  color: #74809A;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 10.5px;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.hr-chat-suggested-btn:hover {
+  border-color: rgba(0, 168, 59, 0.3);
+  color: #00A83B;
+}
+
+/* Input area */
+.hr-chat-input-wrapper {
+  display: flex;
+  background-color: #12161F;
+  border: 1px solid #1F2532;
+  border-radius: 12px;
+  padding: 4px 6px;
+  align-items: center;
+  transition: border-color 0.2s;
+}
+
+.hr-chat-input-wrapper:focus-within {
+  border-color: rgba(0, 168, 59, 0.4);
+}
+
+.hr-chat-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  color: #FFFFFF;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 8px;
+}
+
+.hr-chat-input::placeholder {
+  color: #6B7280;
+}
+
+.hr-chat-send-btn {
+  background-color: #00A83B;
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #0A0E14;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.hr-chat-send-btn:hover:not(:disabled) {
+  background-color: #00C846;
+}
+
+.hr-chat-send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Manual Review Panel (dark themed) */
+.hr-manual-review-panel {
+  background-color: #0A0E14;
+  border: 1px solid rgba(185, 105, 0, 0.2);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  height: 380px;
+}
+
+.hr-manual-review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.hr-manual-review-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hr-manual-review-count {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: 'Space Grotesk', sans-serif;
+  color: #FFFFFF;
+}
+
+.hr-manual-review-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Empty state styling */
+.hr-manual-review-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #74809A;
+  padding: 20px;
+}
+
+.hr-manual-review-empty-icon {
+  background-color: #12161F;
+  border: 1px solid #1F2532;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  color: #6B7280;
+}
+
+.hr-manual-review-empty p {
+  margin: 0 0 4px 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #D1D5DB;
+}
+
+.hr-manual-review-empty span {
+  font-size: 11px;
+}
+
+/* Active manual review rows */
+.hr-manual-review-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background-color: #12161F;
+  border: 1px solid #1F2532;
+  border-radius: 12px;
+  transition: border-color 0.2s;
+}
+
+.hr-manual-review-item:hover {
+  border-color: rgba(185, 105, 0, 0.3);
+}
+
+.hr-manual-review-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  margin-right: 12px;
+}
+
+.hr-manual-review-cand-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #FFFFFF;
+}
+
+.hr-manual-review-cand-job {
+  font-size: 10.5px;
+  color: #74809A;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hr-manual-review-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hr-manual-review-cand-score {
+  font-size: 13px;
+  font-weight: 700;
+  color: #00A83B;
+}
+
+.hr-manual-review-btn {
+  background-color: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #FFFFFF;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.hr-manual-review-btn:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-color: #FFFFFF;
+}
+
+.hr-manual-review-footer {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 10px;
+  color: #74809A;
+  text-align: center;
+}
+
+/* Responsive configurations */
+@media (max-width: 1024px) {
+  .hr-dashboard-container {
+    padding: 24px 20px;
+  }
+  
+  .hr-dashboard-kpis {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .hr-dashboard-bottom-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .hr-skills-container {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  
+  .hr-candidate-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

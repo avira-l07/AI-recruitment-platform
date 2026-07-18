@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -469,3 +470,51 @@ def generate_suggestions(
             "error_type": err_type,
             "safe_error_message": safe_msg
         }
+
+
+@router.get("/{user_id}/download")
+def download_resume_file(user_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    verify_candidate_ownership(user_id, current_user)
+    candidate = _candidate_by_user(db, user_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    resume = db.query(Resume).filter(Resume.candidate_id == candidate.id).first()
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume record not found")
+    if not resume.file_path or not os.path.exists(resume.file_path):
+        raise HTTPException(status_code=404, detail="Resume file not found on disk")
+
+    # Prevent path traversal relative to upload directory
+    upload_root = Path(os.getenv("UPLOAD_DIR", "uploads")).resolve()
+    resume_path = Path(resume.file_path).resolve()
+    try:
+        resume_path.relative_to(upload_root)
+    except ValueError:
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid resume file path."
+        )
+
+    ext = get_file_extension(resume.file_name).lower()
+    if ext == ".pdf":
+        media_type = "application/pdf"
+        disposition_type = "inline"
+    elif ext == ".docx":
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        disposition_type = "attachment"
+    else:
+        raise HTTPException(status_code=415, detail="Unsupported resume file format.")
+
+    original_filename = os.path.basename(resume.file_name)
+    headers = {
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff"
+    }
+
+    return FileResponse(
+        path=resume_path,
+        media_type=media_type,
+        filename=original_filename,
+        content_disposition_type=disposition_type,
+        headers=headers
+    )

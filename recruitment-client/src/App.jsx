@@ -74,55 +74,20 @@ function AppRoutes({ currentUser, onLogout }) {
 
         {/* HR Portal */}
         <Route
-          path="/hr/dashboard"
+          path="/hr"
           element={
             <ProtectedRoute requiredRole="hr">
-              <HRLayout>
-                <HRDashboard />
-              </HRLayout>
+              <HRLayout />
             </ProtectedRoute>
           }
-        />
-        <Route
-          path="/hr/candidates"
-          element={
-            <ProtectedRoute requiredRole="hr">
-              <HRLayout>
-                <Candidates />
-              </HRLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/hr/jobs"
-          element={
-            <ProtectedRoute requiredRole="hr">
-              <HRLayout>
-                <JobManagement />
-              </HRLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/hr/analytics"
-          element={
-            <ProtectedRoute requiredRole="hr">
-              <HRLayout>
-                <Analytics />
-              </HRLayout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/hr/settings"
-          element={
-            <ProtectedRoute requiredRole="hr">
-              <HRLayout>
-                <Settings />
-              </HRLayout>
-            </ProtectedRoute>
-          }
-        />
+        >
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<HRDashboard />} />
+          <Route path="candidates" element={<Candidates />} />
+          <Route path="jobs" element={<JobManagement />} />
+          <Route path="analytics" element={<Analytics />} />
+          <Route path="settings" element={<Settings />} />
+        </Route>
       </Routes>
     </div>
   );

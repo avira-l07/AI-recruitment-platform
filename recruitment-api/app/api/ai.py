@@ -36,7 +36,9 @@ def get_ai_status(db: Session = Depends(get_db), _: User = Depends(require_hr)):
     ).scalar()
 
     gemini_status = _provider_status_from_job(latest, "gemini_status", health.get("status", "not_configured"))
-    if not latest or latest.current_stage in {"completed", "fallback_completed", "failed"}:
+    if not health.get("configured"):
+        gemini_status = "not_configured"
+    elif not latest or latest.current_stage in {"completed", "fallback_completed", "failed"}:
         if health.get("status") in {"available", "not_configured", "configured_not_tested", "rate_limited", "authentication_failed", "temporarily_unavailable", "request_failed", "timeout", "invalid_response"}:
             gemini_status = health.get("status")
 

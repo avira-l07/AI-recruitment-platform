@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate, NavLink } from 'react-router-dom';
+import RecruitAILogo from './RecruitAILogo';
 
 const Sidebar = ({ role, active, onSelect, user, onLogout }) => {
   const navigate = useNavigate();
@@ -28,8 +29,8 @@ const Sidebar = ({ role, active, onSelect, user, onLogout }) => {
 
     return (
       <aside className="hr-sidebar">
-        <div className="hr-sidebar-logo">
-          RecruitAI <span style={{ color: '#6D5DFC', fontWeight: '400' }}>HR</span>
+        <div className="hr-sidebar-logo" style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+          <RecruitAILogo />
         </div>
 
         <nav className="hr-sidebar-nav">

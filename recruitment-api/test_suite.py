@@ -725,5 +725,205 @@ def test_verify_auth_endpoint():
     assert response.json()["status"] == "valid"
 
 
+def setup_test_resume(tmp_path, file_name="test.pdf", file_content=b"%PDF-1.4 test content"):
+    db = TestingSessionLocal()
+    temp_upload = tmp_path / "uploads"
+    temp_upload.mkdir(exist_ok=True)
+    os.environ["UPLOAD_DIR"] = str(temp_upload.resolve())
+    
+    test_file = temp_upload / file_name
+    test_file.write_bytes(file_content)
+    
+    ensure_resume_exists(db)
+    resume = db.query(Resume).filter(Resume.candidate_id == 1).first()
+    resume.file_path = str(test_file.resolve())
+    resume.file_name = file_name
+    db.commit()
+    db.close()
+    return test_file
+
+
+def test_anonymous_resume_download_returns_401():
+    response = client.get("/resumes/1/download")
+    assert response.status_code == 401
+
+
+def test_invalid_token_download_returns_401():
+    response = client.get("/resumes/1/download", headers={"Authorization": "Bearer invalidtoken123"})
+    assert response.status_code == 401
+
+
+def test_expired_token_download_returns_401():
+    from jose import jwt
+    from app.core.security import SECRET_KEY, ALGORITHM
+    expire = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(seconds=10)
+    token = jwt.encode({"user_id": 1, "role": "candidate", "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+    response = client.get("/resumes/1/download", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 401
+
+
+def test_candidate_downloads_own_resume_successfully(tmp_path):
+    setup_test_resume(tmp_path, "test.pdf", b"%PDF-1.4 test resume pdf content")
+    headers = get_auth_headers(user_id=1, role="candidate")
+    response = client.get("/resumes/1/download", headers=headers)
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert "inline" in response.headers["content-disposition"]
+    assert "test.pdf" in response.headers["content-disposition"]
+    assert response.content == b"%PDF-1.4 test resume pdf content"
+
+
+def test_candidate_cannot_download_another_candidate_resume(tmp_path):
+    setup_test_resume(tmp_path, "test.pdf")
+    headers = get_auth_headers(user_id=2, role="candidate")
+    response = client.get("/resumes/1/download", headers=headers)
+    assert response.status_code == 403
+
+
+def test_hr_can_download_candidate_resume(tmp_path):
+    setup_test_resume(tmp_path, "test.pdf")
+    headers = get_auth_headers(user_id=3, role="hr")
+    response = client.get("/resumes/1/download", headers=headers)
+    assert response.status_code == 200
+
+
+def test_missing_resume_record_returns_404():
+    headers = get_auth_headers(user_id=3, role="hr")
+    response = client.get("/resumes/999/download", headers=headers)
+    assert response.status_code == 404
+
+
+def test_resume_record_exists_but_file_is_missing_on_disk():
+    db = TestingSessionLocal()
+    ensure_resume_exists(db)
+    resume = db.query(Resume).filter(Resume.candidate_id == 1).first()
+    resume.file_path = "uploads/nonexistent_file_path.pdf"
+    db.commit()
+    db.close()
+    
+    headers = get_auth_headers(user_id=3, role="hr")
+    response = client.get("/resumes/1/download", headers=headers)
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+def test_pdf_media_type_and_inline_disposition(tmp_path):
+    setup_test_resume(tmp_path, "my_resume.pdf")
+    headers = get_auth_headers(user_id=3, role="hr")
+    response = client.get("/resumes/1/download", headers=headers)
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert "inline" in response.headers["content-disposition"]
+
+
+def test_docx_media_type_and_attachment_disposition(tmp_path):
+    setup_test_resume(tmp_path, "my_resume.docx", b"PK\x03\x04 mock word content")
+    headers = get_auth_headers(user_id=3, role="hr")
+    response = client.get("/resumes/1/download", headers=headers)
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    assert "attachment" in response.headers["content-disposition"]
+
+
+def test_path_outside_upload_directory_is_rejected(tmp_path):
+    # Enforce standard upload directory inside tmp_path
+    temp_upload = tmp_path / "uploads"
+    temp_upload.mkdir(exist_ok=True)
+    os.environ["UPLOAD_DIR"] = str(temp_upload.resolve())
+
+    outside_file = tmp_path / "outside_file.pdf"
+    outside_file.write_bytes(b"%PDF-1.4 malicious outside path traversal")
+    
+    db = TestingSessionLocal()
+    ensure_resume_exists(db)
+    resume = db.query(Resume).filter(Resume.candidate_id == 1).first()
+    resume.file_path = str(outside_file.resolve())
+    resume.file_name = "outside_file.pdf"
+    db.commit()
+    db.close()
+    
+    headers = get_auth_headers(user_id=3, role="hr")
+    response = client.get("/resumes/1/download", headers=headers)
+    assert response.status_code == 403
+    assert "invalid" in response.json()["detail"].lower()
+
+
+def test_malicious_stored_filename_path_traversal_prevented(tmp_path):
+    temp_upload = tmp_path / "uploads"
+    temp_upload.mkdir(exist_ok=True)
+    os.environ["UPLOAD_DIR"] = str(temp_upload.resolve())
+
+    outside_file = tmp_path / "escape.pdf"
+    outside_file.write_bytes(b"%PDF-1.4 malicious path traversal")
+    
+    db = TestingSessionLocal()
+    ensure_resume_exists(db)
+    resume = db.query(Resume).filter(Resume.candidate_id == 1).first()
+    resume.file_path = str(temp_upload.resolve()) + "/../escape.pdf"
+    resume.file_name = "escape.pdf"
+    db.commit()
+    db.close()
+    
+    headers = get_auth_headers(user_id=3, role="hr")
+    response = client.get("/resumes/1/download", headers=headers)
+    assert response.status_code == 403
+
+
+def test_response_headers_does_not_expose_internal_filepath(tmp_path):
+    test_file = setup_test_resume(tmp_path, "test.pdf")
+    headers = get_auth_headers(user_id=3, role="hr")
+    response = client.get("/resumes/1/download", headers=headers)
+    assert response.status_code == 200
+    
+    for k, v in response.headers.items():
+        assert str(test_file.resolve()) not in v
+        assert "uploads" not in v.lower()
+
+
+def test_download_endpoint_does_not_trigger_gemini(tmp_path, monkeypatch):
+    setup_test_resume(tmp_path, "test.pdf")
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("Gemini was called!")
+    monkeypatch.setattr(career_advisor, "call_gemini_json", fail_if_called)
+
+    headers = get_auth_headers(user_id=3, role="hr")
+    response = client.get("/resumes/1/download", headers=headers)
+    assert response.status_code == 200
+
+
+def test_download_endpoint_does_not_modify_resume_record(tmp_path):
+    setup_test_resume(tmp_path, "test.pdf")
+    db = TestingSessionLocal()
+    resume_before = db.query(Resume).filter(Resume.candidate_id == 1).first()
+    hash_before = resume_before.resume_hash
+    status_before = resume_before.status
+    db.close()
+
+    headers = get_auth_headers(user_id=3, role="hr")
+    client.get("/resumes/1/download", headers=headers)
+    
+    db = TestingSessionLocal()
+    resume_after = db.query(Resume).filter(Resume.candidate_id == 1).first()
+    assert resume_after.resume_hash == hash_before
+    assert resume_after.status == status_before
+    db.close()
+
+
+def test_download_response_security_headers(tmp_path):
+    setup_test_resume(tmp_path, "test.pdf")
+    headers = get_auth_headers(user_id=3, role="hr")
+    response = client.get("/resumes/1/download", headers=headers)
+    assert response.status_code == 200
+    assert response.headers.get("cache-control") == "private, no-store"
+    assert response.headers.get("x-content-type-options") == "nosniff"
+
+
+def test_download_unsupported_type_raises_415(tmp_path):
+    setup_test_resume(tmp_path, "my_resume.txt", b"some txt content")
+    headers = get_auth_headers(user_id=3, role="hr")
+    response = client.get("/resumes/1/download", headers=headers)
+    assert response.status_code == 415
+
+
 
 

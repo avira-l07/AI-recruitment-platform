@@ -1,0 +1,367 @@
+/* Resume Review Drawer Styling - Neutral Document-Focused Theme */
+
+.review-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(10, 14, 20, 0.35);
+  backdrop-filter: blur(2px);
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.review-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 640px; /* Slightly wider for document previewing */
+  max-width: 100%;
+  background-color: #FFFFFF;
+  border-left: 1px solid #E8E0D5;
+  box-shadow: -4px 0 24px rgba(7, 21, 46, 0.08);
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #E8E0D5;
+  background-color: #F8FAFC;
+}
+
+.review-header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.review-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.review-title h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #07152E;
+}
+
+.review-title p {
+  margin: 2px 0 0 0;
+  font-size: 12px;
+  color: #74809A;
+  display: flex;
+  gap: 12px;
+}
+
+.review-close-btn {
+  background: none;
+  border: none;
+  color: #74809A;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.review-close-btn:hover {
+  background-color: #F1F5F9;
+  color: #07152E;
+}
+
+/* Tabs Bar */
+.review-tabs-bar {
+  display: flex;
+  border-bottom: 1px solid #E8E0D5;
+  background-color: #F8FAFC;
+  padding: 0 24px;
+}
+
+.review-tab-btn {
+  padding: 14px 20px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #74809A;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.review-tab-btn:hover {
+  color: #07152E;
+}
+
+.review-tab-btn.active {
+  color: #3B55E6;
+  border-bottom-color: #3B55E6;
+}
+
+/* Body container */
+.review-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background-color: #FCFBFA;
+}
+
+/* Metadata summary block */
+.review-metadata-card {
+  background-color: #FFFFFF;
+  border: 1px solid #E8E0D5;
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(7, 21, 46, 0.02);
+}
+
+.review-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.review-meta-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #74809A;
+  text-transform: uppercase;
+}
+
+.review-meta-value {
+  font-size: 12.5px;
+  color: #07152E;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+/* Document Embed Viewer & Fallback */
+.review-document-pane {
+  flex: 1;
+  border: 1px solid #E8E0D5;
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: #F1F5F9;
+  display: flex;
+  flex-direction: column;
+  height: 500px;
+}
+
+/* Toolbar for Embedded PDF */
+.pdf-viewer-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  background-color: #FFFFFF;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.pdf-viewer-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pdf-toolbar-btn {
+  background: none;
+  border: 1px solid #E2E8F0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pdf-toolbar-btn:hover {
+  background-color: #F8FAFC;
+  color: #0F172A;
+}
+
+.pdf-toolbar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pdf-zoom-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+/* Docx/general download fallback */
+.review-preview-fallback {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  background-color: #FFFFFF;
+  color: #475569;
+  gap: 16px;
+}
+
+.review-fallback-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background-color: #F1F5F9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #3B55E6;
+}
+
+.review-fallback-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #07152E;
+  margin: 0 0 4px 0;
+}
+
+.review-fallback-desc {
+  font-size: 12px;
+  color: #74809A;
+  margin: 0;
+}
+
+.review-fallback-btn {
+  background-color: #3B55E6;
+  color: #FFFFFF;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 6px rgba(59, 85, 230, 0.15);
+  transition: background-color 0.2s;
+}
+
+.review-fallback-btn:hover {
+  background-color: #2D43C4;
+}
+
+/* Extracted Profile blocks */
+.profile-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background-color: #FFFFFF;
+  border: 1px solid #E8E0D5;
+  padding: 18px;
+  border-radius: 12px;
+}
+
+.profile-section h3 {
+  margin: 0 0 4px 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #07152E;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #F1F5F9;
+  padding-bottom: 8px;
+}
+
+.profile-detail-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #334155;
+  margin: 0;
+  white-space: pre-line;
+}
+
+/* Sticky action footer */
+.review-drawer-footer {
+  display: flex;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #E8E0D5;
+  background-color: #FFFFFF;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+}
+
+.review-footer-btn {
+  flex: 1;
+  padding: 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  text-align: center;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.review-footer-btn.primary {
+  background-color: #3B55E6;
+  color: #FFFFFF;
+}
+
+.review-footer-btn.primary:hover:not(:disabled) {
+  background-color: #2D43C4;
+}
+
+.review-footer-btn.secondary {
+  background-color: #FFFFFF;
+  border: 1px solid #E8E0D5;
+  color: #07152E;
+}
+
+.review-footer-btn.secondary:hover:not(:disabled) {
+  background-color: #F8FAFC;
+}
+
+.review-footer-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Responsive configurations */
+@media (max-width: 768px) {
+  .review-drawer {
+    width: 100%;
+  }
+  .review-metadata-card {
+    grid-template-columns: 1fr;
+  }
+}
