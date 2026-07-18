@@ -55,16 +55,11 @@ def _confidence_from_evidence(result: dict) -> tuple[float | None, str | None]:
     return score, label
 
 
-@router.post("")
-def create_application(
-    payload: ApplyRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_candidate)
-):
+def submit_application(db: Session, job_id: int, current_user: User) -> dict:
     candidate = db.query(Candidate).filter(Candidate.user_id == current_user.id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate profile not found.")
-    job = db.query(Job).filter(Job.id == payload.job_id).first()
+    job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
     if job.status != "Active":
@@ -131,6 +126,7 @@ def create_application(
         fallback_reason=fallback_reason,
     )
     db.add(match)
+    db.commit()
     
     # Notify only the job-owning HR
     if job.created_by:
@@ -153,6 +149,7 @@ def create_application(
         "application",
         application.id
     )
+    db.commit()
     
     # Publish event
     publish_event(db, "matching_applied", candidate.id, current_user.id, {
@@ -160,7 +157,6 @@ def create_application(
         "score": match.score,
         "ai_source": ai_source
     }, job_id=job.id)
-    
     db.commit()
     db.refresh(application)
     
@@ -169,8 +165,19 @@ def create_application(
         "application_id": application.id,
         "job_id": job.id,
         "status": application.status,
-        "created_at": application.applied_at.isoformat() if hasattr(application.applied_at, "isoformat") else str(application.applied_at)
+        "created_at": application.applied_at.isoformat() if hasattr(application.applied_at, "isoformat") else str(application.applied_at),
+        "match_id": match.id,
+        "score": match.score,
     }
+
+
+@router.post("")
+def create_application(
+    payload: ApplyRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_candidate)
+):
+    return submit_application(db, payload.job_id, current_user)
 
 
 @router.get("/hr/me")

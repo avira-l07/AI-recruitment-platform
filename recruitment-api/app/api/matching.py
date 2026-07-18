@@ -178,125 +178,15 @@ def get_job_matches(
     return [_match_payload(*row) for row in rows]
 
 
+from app.api.applications import submit_application
+
 @router.post("/apply")
 def apply_to_job(
     payload: ApplyRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_candidate),
 ):
-    candidate = db.query(Candidate).filter(Candidate.user_id == current_user.id).first()
-    if not candidate:
-        raise HTTPException(status_code=404, detail="Candidate profile not found.")
-    job = db.query(Job).filter(Job.id == payload.job_id).first()
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found.")
-    if job.status != "Active":
-        raise HTTPException(status_code=400, detail="This job is no longer accepting applications.")
-    if not candidate.skills:
-        raise HTTPException(status_code=422, detail="Upload a valid complete resume before applying.")
-
-    application = Application(candidate_id=candidate.id, job_id=job.id, status="AI Review")
-    db.add(application)
-    try:
-        db.flush()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="You have already applied to this job.")
-
-    analysis = start_analysis_job(db, application.id, candidate.id, job.id)
-    try:
-        result = calculate_hybrid_match(
-            candidate_skills=safe_split(candidate.skills),
-            candidate_education=candidate.education or "",
-            candidate_experience=candidate.experience or "",
-            candidate_projects=candidate.projects or "",
-            job_required_skills=job.required_skills or "",
-            job_experience_level=job.experience_level or "",
-            job_education_requirement=job.education_requirement or "",
-            role=job.title,
-        )
-        confidence_score, confidence_label = _confidence_from_evidence(result)
-        ai_source = result.get("ai_source") or "local_ai"
-        fallback_reason = result.get("fallback_reason")
-        insight_json = {
-            "fit_label": result["fit_label"],
-            "short_explanation": result["explanation"],
-            "hr_summary": result["hr_summary"],
-            "ai_semantic_analysis": result["ai_semantic_analysis"],
-            "roadmap": result["roadmap"],
-            "interview_questions": result["interview_questions"],
-            "risk_flags": result["risk_flags"],
-            "recommendation": result["recommendation"],
-            "semantic_matches": result["semantic_matches"],
-            "ai_source": ai_source,
-        }
-        match = MatchScore(
-            application_id=application.id,
-            candidate_id=candidate.id,
-            job_id=job.id,
-            score=result["score"],
-            fit_label=result["fit_label"],
-            confidence_score=confidence_score,
-            confidence_label=confidence_label,
-            matched_skills=", ".join(result["matched_skills"]),
-            missing_skills=", ".join(result["missing_skills"]),
-            explanation=json.dumps(insight_json),
-            ai_source=ai_source,
-            local_completed=True,
-            gemini_completed=ai_source in {"gemini", "hybrid"},
-            hybrid_completed=ai_source == "hybrid",
-            fallback_active=ai_source == "local_fallback",
-            fallback_reason=fallback_reason,
-        )
-        db.add(match)
-        application.status = "Manual Review"
-        complete_analysis_job(db, analysis, ai_source, fallback_reason)
-        
-        publish_event(db, "matching_applied", candidate.id, current_user.id, {
-            "application_id": application.id,
-            "score": match.score,
-            "ai_source": ai_source
-        }, job_id=job.id)
-
-        notify_all_hr(
-            db,
-            "New application ready for review",
-            f"{candidate.full_name or 'A candidate'} applied for {job.title}.",
-            "application",
-            "application",
-            application.id,
-        )
-        create_notification(
-            db,
-            current_user.id,
-            "Application submitted",
-            f"Your application for {job.title} was analyzed successfully.",
-            "success",
-            "application",
-            application.id,
-        )
-        db.commit()
-        db.refresh(application)
-        db.refresh(match)
-        return {
-            "message": "Application submitted successfully.",
-            "application_id": application.id,
-            "match_id": match.id,
-            "score": match.score,
-            "confidence_score": confidence_score,
-            "confidence_label": confidence_label,
-            **insight_json,
-            "fallback_reason": fallback_reason,
-        }
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as e:
-        db.rollback()
-        logger.exception("Candidate-job analysis failed")
-        fail_analysis_job(db, analysis, "analysis_failed", str(e))
-        db.commit()
-        raise HTTPException(status_code=500, detail="Application analysis could not be completed.")
+    return submit_application(db, payload.job_id, current_user)
 
 
 @router.put("/{application_id}/status")
