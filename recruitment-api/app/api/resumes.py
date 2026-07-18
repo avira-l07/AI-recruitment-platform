@@ -472,8 +472,61 @@ def generate_suggestions(
         }
 
 
+@router.get("/me/download")
+def download_my_resume(db: Session = Depends(get_db), current_user = Depends(require_roles(["candidate"]))):
+    candidate = db.query(Candidate).filter(Candidate.user_id == current_user.id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate profile not found")
+    resume = db.query(Resume).filter(Resume.candidate_id == candidate.id).first()
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume record not found")
+    if not resume.file_path or not os.path.exists(resume.file_path):
+        raise HTTPException(status_code=404, detail="Resume file not found on disk")
+        
+    upload_root = Path(os.getenv("UPLOAD_DIR", "uploads")).resolve()
+    stored_path = Path(resume.file_path)
+    if stored_path.is_absolute():
+        resume_path = stored_path.resolve()
+    else:
+        resume_path = (upload_root / stored_path).resolve()
+        
+    try:
+        resume_path.relative_to(upload_root)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Invalid resume file path.")
+        
+    ext = get_file_extension(resume.file_name).lower()
+    if ext == ".pdf":
+        media_type = "application/pdf"
+        disposition_type = "inline"
+    elif ext == ".docx":
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        disposition_type = "attachment"
+    else:
+        raise HTTPException(status_code=415, detail="Unsupported resume file format.")
+        
+    original_filename = os.path.basename(resume.file_name)
+    original_filename = "".join(c for c in original_filename if c not in "\r\n\0")
+    original_filename = os.path.basename(original_filename)
+
+    headers = {
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff"
+    }
+    return FileResponse(
+        path=resume_path,
+        media_type=media_type,
+        filename=original_filename,
+        content_disposition_type=disposition_type,
+        headers=headers
+    )
+
+
 @router.get("/{user_id}/download")
 def download_resume_file(user_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    if current_user.role != "candidate" or current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Access denied. HR must use the application resume route.")
+
     verify_candidate_ownership(user_id, current_user)
     candidate = _candidate_by_user(db, user_id)
     if not candidate:
@@ -486,7 +539,12 @@ def download_resume_file(user_id: int, db: Session = Depends(get_db), current_us
 
     # Prevent path traversal relative to upload directory
     upload_root = Path(os.getenv("UPLOAD_DIR", "uploads")).resolve()
-    resume_path = Path(resume.file_path).resolve()
+    stored_path = Path(resume.file_path)
+    if stored_path.is_absolute():
+        resume_path = stored_path.resolve()
+    else:
+        resume_path = (upload_root / stored_path).resolve()
+        
     try:
         resume_path.relative_to(upload_root)
     except ValueError:
@@ -506,6 +564,9 @@ def download_resume_file(user_id: int, db: Session = Depends(get_db), current_us
         raise HTTPException(status_code=415, detail="Unsupported resume file format.")
 
     original_filename = os.path.basename(resume.file_name)
+    original_filename = "".join(c for c in original_filename if c not in "\r\n\0")
+    original_filename = os.path.basename(original_filename)
+
     headers = {
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff"
