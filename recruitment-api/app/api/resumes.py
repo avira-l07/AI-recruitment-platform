@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.resume import Resume
 from app.models.candidate import Candidate
+from app.models.job import Job
+from app.models.application import Application
 from app.ai.resume_parser import parse_resume
 from app.ai.resume_quality import validate_resume_quality
 from app.ai.resume_intelligence import build_local_resume_intelligence

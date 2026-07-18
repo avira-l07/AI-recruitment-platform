@@ -24,6 +24,17 @@ from app.models.job import Job
 Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
 
+from app.core.database import get_db
+
+def override_get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+app.dependency_overrides[get_db] = override_get_db
+
 
 @pytest.fixture(scope="session")
 def client():

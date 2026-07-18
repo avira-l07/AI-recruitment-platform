@@ -15,6 +15,7 @@ from app.models.candidate import Candidate
 from app.models.resume import Resume
 from app.models.job import Job
 from app.models.match_score import MatchScore
+from app.models.application import Application
 from app.ai import career_advisor
 from app.ai import resume_intelligence
 from app.api import resumes
@@ -44,9 +45,13 @@ def setup_db():
         
         db.add_all([c_prof1, c_prof2])
         
-        job = Job(id=1, title="ML/AI Engineer", description="ML description", required_skills="Python, Machine Learning", experience_level="Mid", education_requirement="Bachelors", status="Active")
+        job = Job(id=1, title="ML/AI Engineer", description="ML description", required_skills="Python, Machine Learning", experience_level="Mid", education_requirement="Bachelors", status="Active", created_by=3)
         db.add(job)
-        
+        db.flush()
+
+        app1 = Application(id=1, candidate_id=1, job_id=1, status="Applied")
+        app2 = Application(id=2, candidate_id=2, job_id=1, status="Applied")
+        db.add_all([app1, app2])
         db.commit()
     finally:
         db.close()
@@ -783,13 +788,13 @@ def test_candidate_cannot_download_another_candidate_resume(tmp_path):
 def test_hr_can_download_candidate_resume(tmp_path):
     setup_test_resume(tmp_path, "test.pdf")
     headers = get_auth_headers(user_id=3, role="hr")
-    response = client.get("/resumes/1/download", headers=headers)
+    response = client.get("/applications/1/resume", headers=headers)
     assert response.status_code == 200
 
 
 def test_missing_resume_record_returns_404():
     headers = get_auth_headers(user_id=3, role="hr")
-    response = client.get("/resumes/999/download", headers=headers)
+    response = client.get("/applications/2/resume", headers=headers)
     assert response.status_code == 404
 
 
@@ -802,7 +807,7 @@ def test_resume_record_exists_but_file_is_missing_on_disk():
     db.close()
     
     headers = get_auth_headers(user_id=3, role="hr")
-    response = client.get("/resumes/1/download", headers=headers)
+    response = client.get("/applications/1/resume", headers=headers)
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
 
@@ -810,7 +815,7 @@ def test_resume_record_exists_but_file_is_missing_on_disk():
 def test_pdf_media_type_and_inline_disposition(tmp_path):
     setup_test_resume(tmp_path, "my_resume.pdf")
     headers = get_auth_headers(user_id=3, role="hr")
-    response = client.get("/resumes/1/download", headers=headers)
+    response = client.get("/applications/1/resume", headers=headers)
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/pdf"
     assert "inline" in response.headers["content-disposition"]
@@ -819,7 +824,7 @@ def test_pdf_media_type_and_inline_disposition(tmp_path):
 def test_docx_media_type_and_attachment_disposition(tmp_path):
     setup_test_resume(tmp_path, "my_resume.docx", b"PK\x03\x04 mock word content")
     headers = get_auth_headers(user_id=3, role="hr")
-    response = client.get("/resumes/1/download", headers=headers)
+    response = client.get("/applications/1/resume", headers=headers)
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     assert "attachment" in response.headers["content-disposition"]
@@ -843,7 +848,7 @@ def test_path_outside_upload_directory_is_rejected(tmp_path):
     db.close()
     
     headers = get_auth_headers(user_id=3, role="hr")
-    response = client.get("/resumes/1/download", headers=headers)
+    response = client.get("/applications/1/resume", headers=headers)
     assert response.status_code == 403
     assert "invalid" in response.json()["detail"].lower()
 
@@ -865,14 +870,14 @@ def test_malicious_stored_filename_path_traversal_prevented(tmp_path):
     db.close()
     
     headers = get_auth_headers(user_id=3, role="hr")
-    response = client.get("/resumes/1/download", headers=headers)
+    response = client.get("/applications/1/resume", headers=headers)
     assert response.status_code == 403
 
 
 def test_response_headers_does_not_expose_internal_filepath(tmp_path):
     test_file = setup_test_resume(tmp_path, "test.pdf")
     headers = get_auth_headers(user_id=3, role="hr")
-    response = client.get("/resumes/1/download", headers=headers)
+    response = client.get("/applications/1/resume", headers=headers)
     assert response.status_code == 200
     
     for k, v in response.headers.items():
@@ -887,7 +892,7 @@ def test_download_endpoint_does_not_trigger_gemini(tmp_path, monkeypatch):
     monkeypatch.setattr(career_advisor, "call_gemini_json", fail_if_called)
 
     headers = get_auth_headers(user_id=3, role="hr")
-    response = client.get("/resumes/1/download", headers=headers)
+    response = client.get("/applications/1/resume", headers=headers)
     assert response.status_code == 200
 
 
@@ -900,7 +905,7 @@ def test_download_endpoint_does_not_modify_resume_record(tmp_path):
     db.close()
 
     headers = get_auth_headers(user_id=3, role="hr")
-    client.get("/resumes/1/download", headers=headers)
+    client.get("/applications/1/resume", headers=headers)
     
     db = TestingSessionLocal()
     resume_after = db.query(Resume).filter(Resume.candidate_id == 1).first()
@@ -912,7 +917,7 @@ def test_download_endpoint_does_not_modify_resume_record(tmp_path):
 def test_download_response_security_headers(tmp_path):
     setup_test_resume(tmp_path, "test.pdf")
     headers = get_auth_headers(user_id=3, role="hr")
-    response = client.get("/resumes/1/download", headers=headers)
+    response = client.get("/applications/1/resume", headers=headers)
     assert response.status_code == 200
     assert response.headers.get("cache-control") == "private, no-store"
     assert response.headers.get("x-content-type-options") == "nosniff"
@@ -921,7 +926,7 @@ def test_download_response_security_headers(tmp_path):
 def test_download_unsupported_type_raises_415(tmp_path):
     setup_test_resume(tmp_path, "my_resume.txt", b"some txt content")
     headers = get_auth_headers(user_id=3, role="hr")
-    response = client.get("/resumes/1/download", headers=headers)
+    response = client.get("/applications/1/resume", headers=headers)
     assert response.status_code == 415
 
 
