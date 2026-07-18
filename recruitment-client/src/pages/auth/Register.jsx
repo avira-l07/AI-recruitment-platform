@@ -8,7 +8,6 @@ const Register = () => {
     name: '',
     email: '',
     password: '',
-    role: 'candidate'
   });
   const [error, setError] = useState('');
 
@@ -20,10 +19,10 @@ const Register = () => {
     e.preventDefault();
     setError('');
     try {
-      await authService.register(formData.name, formData.email, formData.password, formData.role);
+      await authService.register(formData.name, formData.email, formData.password);
       navigate('/login');
     } catch (err) {
-      setError(err.message || 'Registration failed');
+      setError(err.response?.data?.detail || err.message || 'Registration failed');
     }
   };
 
@@ -45,18 +44,9 @@ const Register = () => {
             <input type="email" name="email" className="form-input" value={formData.email} onChange={handleChange} required />
           </div>
           
-          <div style={{ marginBottom: '16px' }}>
+          <div style={{ marginBottom: '24px' }}>
             <label className="form-label">Password</label>
             <input type="password" name="password" className="form-input" value={formData.password} onChange={handleChange} required />
-          </div>
-          
-          <div style={{ marginBottom: '24px' }}>
-            <label className="form-label">Role</label>
-            {/* FIXED: Added value prop to make this a controlled component */}
-            <select name="role" className="form-input" value={formData.role} onChange={handleChange} required>
-              <option value="candidate">Candidate</option>
-              <option value="hr">HR Professional</option>
-            </select>
           </div>
           
           <button type="submit" className="btn-primary" style={{ width: '100%', marginBottom: '16px' }}>Register</button>

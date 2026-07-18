@@ -3,11 +3,12 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import authService from './services/authService';
 import api from './services/api';
 import Navbar from './components/Navbar';
-import Sidebar from './components/Sidebar';
 
 import LandingPage from './pages/LandingPage';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
+import ChangePassword from './pages/auth/ChangePassword';
+import AdminHRAccounts from './pages/AdminHRAccounts';
 import CandidateDashboard from './pages/candidate/CandidateDashboard';
 import HRDashboard from './pages/hr/HRDashboard';
 import JobManagement from './pages/hr/JobManagement';
@@ -17,6 +18,7 @@ import Settings from './pages/hr/Settings';
 import HRLayout from './layouts/HRLayout';
 
 const ProtectedRoute = ({ children, requiredRole }) => {
+  const location = useLocation();
   const token = localStorage.getItem('token');
   const user = authService.getCurrentUser();
 
@@ -24,8 +26,19 @@ const ProtectedRoute = ({ children, requiredRole }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (requiredRole && user.role !== requiredRole) {
-    return <Navigate to="/login" replace />;
+  // Force change password redirect if flag is set
+  if (user.must_change_password && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />;
+  }
+
+  if (requiredRole && user.role?.toLowerCase() !== requiredRole.toLowerCase()) {
+    if (user.role?.toLowerCase() === 'admin') {
+      return <Navigate to="/admin/hr-accounts" replace />;
+    } else if (user.role?.toLowerCase() === 'hr') {
+      return <Navigate to="/hr/dashboard" replace />;
+    } else {
+      return <Navigate to="/candidate/dashboard" replace />;
+    }
   }
 
   return children;
@@ -45,6 +58,18 @@ function AppRoutes({ currentUser, onLogout }) {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/change-password" element={<ChangePassword />} />
+
+        {/* Admin Portal */}
+        <Route path="/admin" element={<Navigate to="/admin/hr-accounts" replace />} />
+        <Route
+          path="/admin/hr-accounts"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <AdminHRAccounts />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Candidate Portal */}
         <Route

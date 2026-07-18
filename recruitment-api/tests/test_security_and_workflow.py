@@ -60,21 +60,19 @@ def accounts(client):
             "full_name": "Workflow Candidate",
             "email": candidate_email,
             "password": password,
-            "role": "candidate",
         },
     )
     assert candidate_register.status_code == 200, candidate_register.text
 
-    hr_register = client.post(
-        "/auth/register",
-        json={
-            "full_name": "Workflow Recruiter",
-            "email": hr_email,
-            "password": password,
-            "role": "hr",
-        },
-    )
-    assert hr_register.status_code == 200, hr_register.text
+    from app.core.security import get_password_hash
+    from app.models.user import User
+    db = SessionLocal()
+    hr_user = User(full_name="Workflow Recruiter", email=hr_email, hashed_password=get_password_hash(password), role="hr", is_active=True, must_change_password=False)
+    db.add(hr_user)
+    db.commit()
+    db.refresh(hr_user)
+    hr_id = hr_user.id
+    db.close()
 
     candidate_login = client.post("/auth/login", json={"email": candidate_email, "password": password})
     hr_login = client.post("/auth/login", json={"email": hr_email, "password": password})
@@ -83,7 +81,7 @@ def accounts(client):
 
     return {
         "candidate_user_id": candidate_register.json()["user_id"],
-        "hr_user_id": hr_register.json()["user_id"],
+        "hr_user_id": hr_id,
         "candidate_headers": {"Authorization": f"Bearer {candidate_login.json()['access_token']}"},
         "hr_headers": {"Authorization": f"Bearer {hr_login.json()['access_token']}"},
     }

@@ -47,29 +47,27 @@ def client():
 def setup_data(client):
     db = SessionLocal()
     try:
-        # Create HR1
-        hr1_res = client.post("/auth/register", json={
-            "full_name": "HR One", "email": "hr1@example.com", "password": "SecurePass123!", "role": "hr"
-        })
-        assert hr1_res.status_code == 200, f"HR1 registration failed: {hr1_res.status_code} - {hr1_res.text}"
-        hr1_id = hr1_res.json()["user_id"]
+        from app.core.security import get_password_hash
+        hr1_user = User(full_name="HR One", email="hr1@example.com", hashed_password=get_password_hash("SecurePass123!"), role="hr", is_active=True, must_change_password=False)
+        hr2_user = User(full_name="HR Two", email="hr2@example.com", hashed_password=get_password_hash("SecurePass123!"), role="hr", is_active=True, must_change_password=False)
+        db.add_all([hr1_user, hr2_user])
+        db.commit()
+        db.refresh(hr1_user)
+        db.refresh(hr2_user)
+
+        hr1_id = hr1_user.id
         hr1_token_res = client.post("/auth/login", json={"email": "hr1@example.com", "password": "SecurePass123!"})
         assert hr1_token_res.status_code == 200, f"HR1 login failed: {hr1_token_res.text}"
         hr1_token = hr1_token_res.json()["access_token"]
-        
-        # Create HR2
-        hr2_res = client.post("/auth/register", json={
-            "full_name": "HR Two", "email": "hr2@example.com", "password": "SecurePass123!", "role": "hr"
-        })
-        assert hr2_res.status_code == 200, f"HR2 registration failed: {hr2_res.status_code} - {hr2_res.text}"
-        hr2_id = hr2_res.json()["user_id"]
+
+        hr2_id = hr2_user.id
         hr2_token_res = client.post("/auth/login", json={"email": "hr2@example.com", "password": "SecurePass123!"})
         assert hr2_token_res.status_code == 200, f"HR2 login failed: {hr2_token_res.text}"
         hr2_token = hr2_token_res.json()["access_token"]
-        
+
         # Create Candidate 1
         c1_res = client.post("/auth/register", json={
-            "full_name": "Candidate One", "email": "cand1@example.com", "password": "SecurePass123!", "role": "candidate"
+            "full_name": "Candidate One", "email": "cand1@example.com", "password": "SecurePass123!"
         })
         assert c1_res.status_code == 200, f"Candidate 1 registration failed: {c1_res.status_code} - {c1_res.text}"
         c1_id = c1_res.json()["user_id"]
@@ -79,7 +77,7 @@ def setup_data(client):
 
         # Create Candidate 2
         c2_res = client.post("/auth/register", json={
-            "full_name": "Candidate Two", "email": "cand2@example.com", "password": "SecurePass123!", "role": "candidate"
+            "full_name": "Candidate Two", "email": "cand2@example.com", "password": "SecurePass123!"
         })
         assert c2_res.status_code == 200, f"Candidate 2 registration failed: {c2_res.status_code} - {c2_res.text}"
         c2_id = c2_res.json()["user_id"]

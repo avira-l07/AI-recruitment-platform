@@ -1,23 +1,53 @@
 import api from './api';
 
 const authService = {
-  register: async (fullName, email, password, role) => {
-    const response = await api.post('/auth/register', { name: fullName, email, password, role });
+  register: async (fullName, email, password) => {
+    const response = await api.post('/auth/register', { name: fullName, email, password });
     return response.data;
   },
-  login: async (email, password, role) => {
-    const response = await api.post('/auth/login', { email, password, role });
+  login: async (email, password) => {
+    const response = await api.post('/auth/login', { email, password });
     const data = response.data;
 
-    // FIX: Save the token and user info so the dashboard pages recognize you as logged in
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('user', JSON.stringify({
-      id: data.user_id,
+      id: data.id || data.user_id,
       role: data.role,
-      name: data.name,
+      name: data.full_name || data.name,
       email: data.email,
+      is_active: data.is_active,
+      must_change_password: data.must_change_password,
     }));
 
+    return data;
+  },
+  changePassword: async (current_password, new_password, confirm_new_password) => {
+    const response = await api.post('/auth/change-password', {
+      current_password,
+      new_password,
+      confirm_new_password,
+    });
+    const data = response.data;
+
+    if (data.access_token) {
+      localStorage.setItem('token', data.access_token);
+    }
+    if (data.user) {
+      localStorage.setItem('user', JSON.stringify({
+        id: data.user.id,
+        role: data.user.role,
+        name: data.user.full_name || data.user.name,
+        email: data.user.email,
+        is_active: data.user.is_active,
+        must_change_password: data.user.must_change_password,
+      }));
+    }
+    return data;
+  },
+  fetchMe: async () => {
+    const response = await api.get('/auth/me');
+    const data = response.data;
+    localStorage.setItem('user', JSON.stringify(data));
     return data;
   },
   logout: () => {

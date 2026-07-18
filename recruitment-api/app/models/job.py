@@ -11,7 +11,7 @@ class Job(Base):
     required_skills = Column(Text)
     experience_level = Column(String)
     education_requirement = Column(String)
-    created_by = Column(Integer, ForeignKey("users.id"))
+    created_by = Column(Integer, ForeignKey("users.id"), index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     status = Column(String, default="Active")          # "Active" or "Closed"
     closed_reason = Column(Text, nullable=True)

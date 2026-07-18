@@ -7,6 +7,7 @@ import '../pages/LandingPage.css';
 const Navbar = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const currentUser = user !== undefined ? user : authService.getCurrentUser();
+  const isAdmin = currentUser?.role?.toLowerCase() === 'admin';
 
   const handleLogout = () => {
     if (onLogout) {
@@ -19,17 +20,25 @@ const Navbar = ({ user, onLogout }) => {
 
   return (
     <nav className="ra-nav">
-      <Link to="/" className="ra-logo">
+      <Link to={isAdmin ? "/admin/hr-accounts" : "/"} className="ra-logo">
         <span className="ra-logo-mark"><Sparkles size={14} color="#fff" /></span>
         <span className="ra-display">RecruitAI</span>
       </Link>
       
-      <div className="ra-nav-links">
-        <a href="#product">Product</a>
-        <a href="#candidates">For Candidates</a>
-        <a href="#employers">For Employers</a>
-        <a href="#analytics">Analytics</a>
-      </div>
+      {!isAdmin && (
+        <div className="ra-nav-links">
+          <a href="#product">Product</a>
+          <a href="#candidates">For Candidates</a>
+          <a href="#employers">For Employers</a>
+          <a href="#analytics">Analytics</a>
+        </div>
+      )}
+
+      {isAdmin && (
+        <div className="ra-nav-links">
+          <Link to="/admin/hr-accounts" style={{ color: '#fff', fontWeight: 600 }}>HR Accounts</Link>
+        </div>
+      )}
 
       <div className="ra-nav-actions">
         {currentUser ? (
@@ -51,4 +60,3 @@ const Navbar = ({ user, onLogout }) => {
 };
 
 export default Navbar;
-

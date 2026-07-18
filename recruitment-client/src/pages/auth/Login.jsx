@@ -7,7 +7,6 @@ const Login = () => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    role: 'candidate'
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,21 +21,21 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // Calls the backend to authenticate
-      await authService.login(formData.email, formData.password, formData.role);
+      const data = await authService.login(formData.email, formData.password);
       
-      // If successful, navigate to the correct dashboard
-      if (formData.role === 'hr') {
+      if (data.must_change_password) {
+        navigate('/change-password');
+      } else if (data.role === 'admin') {
+        navigate('/admin/hr-accounts');
+      } else if (data.role === 'hr') {
         navigate('/hr/dashboard');
       } else {
         navigate('/candidate/dashboard');
       }
     } catch (err) {
       console.error('Login failed:', err);
-      // Display the actual error from the backend instead of failing silently
       setError(err.response?.data?.detail || err.message || 'Invalid email or password. Please try again.');
     } finally {
-      // THIS GUARANTEES THE BUTTON RESETS EVEN IF LOGIN FAILS
       setLoading(false);
     }
   };
@@ -46,7 +45,6 @@ const Login = () => {
       <div className="card" style={{ width: '100%', maxWidth: '400px' }}>
         <h2 style={{ textAlign: 'center', marginBottom: '24px' }}>Welcome Back</h2>
         
-        {/* The error banner will now correctly display if auth fails */}
         {error && (
           <div style={{ color: '#991b1b', marginBottom: '16px', textAlign: 'center', padding: '12px', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px' }}>
             {error}
@@ -67,7 +65,7 @@ const Login = () => {
             />
           </div>
           
-          <div style={{ marginBottom: '16px' }}>
+          <div style={{ marginBottom: '24px' }}>
             <label className="form-label">Password</label>
             <input 
               type="password" 
@@ -78,20 +76,6 @@ const Login = () => {
               required 
               disabled={loading}
             />
-          </div>
-          
-          <div style={{ marginBottom: '24px' }}>
-            <label className="form-label">Role</label>
-            <select 
-              name="role" 
-              className="form-input" 
-              value={formData.role} 
-              onChange={handleChange} 
-              disabled={loading}
-            >
-              <option value="candidate">Candidate</option>
-              <option value="hr">HR Professional</option>
-            </select>
           </div>
           
           <button 

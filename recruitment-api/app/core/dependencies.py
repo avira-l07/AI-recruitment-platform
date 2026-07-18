@@ -38,12 +38,32 @@ def get_current_user(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=401, detail="User account no longer exists.")
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is inactive."
+        )
+
+    token_version = payload.get("token_version")
+    if token_version is not None and token_version != user.token_version:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has been revoked.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return user
 
 
 def require_hr(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role.lower() != "hr":
         raise HTTPException(status_code=403, detail="HR access is required.")
+    if getattr(current_user, "must_change_password", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Password change required before accessing this resource."
+        )
     return current_user
 
 
@@ -53,12 +73,37 @@ def require_candidate(current_user: User = Depends(get_current_user)) -> User:
     return current_user
 
 
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role.lower() != "admin":
+        raise HTTPException(status_code=403, detail="Administrator access is required.")
+    if getattr(current_user, "must_change_password", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Password change required before accessing this resource."
+        )
+    return current_user
+
+
+def require_password_changed(current_user: User = Depends(get_current_user)) -> User:
+    if getattr(current_user, "must_change_password", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Password change required before accessing this resource."
+        )
+    return current_user
+
+
 def require_roles(allowed_roles: list[str]):
     def role_dependency(user: User = Depends(get_current_user)):
         if user.role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Operation not permitted",
+            )
+        if getattr(user, "must_change_password", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Password change required before accessing this resource."
             )
         return user
     return role_dependency
@@ -122,6 +167,11 @@ def get_optional_user(
         raise HTTPException(status_code=401, detail="Invalid authentication token.")
 
     user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="User account no longer exists.")
+    if not user or not user.is_active:
+        return None
+
+    token_version = payload.get("token_version")
+    if token_version is not None and token_version != user.token_version:
+        return None
+
     return user
