@@ -484,11 +484,7 @@ def download_my_resume(db: Session = Depends(get_db), current_user = Depends(req
         raise HTTPException(status_code=404, detail="Resume file not found on disk")
         
     upload_root = Path(os.getenv("UPLOAD_DIR", "uploads")).resolve()
-    stored_path = Path(resume.file_path)
-    if stored_path.is_absolute():
-        resume_path = stored_path.resolve()
-    else:
-        resume_path = (upload_root / stored_path).resolve()
+    resume_path = Path(resume.file_path).resolve()
         
     try:
         resume_path.relative_to(upload_root)

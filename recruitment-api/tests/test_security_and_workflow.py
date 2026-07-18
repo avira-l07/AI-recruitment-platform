@@ -8,26 +8,32 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-TEST_DB = Path(tempfile.gettempdir()) / f"recruitai_{uuid4().hex}.db"
 os.environ["SECRET_KEY"] = "test-only-secret-key-with-sufficient-length"
-os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB.as_posix()}"
+os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 os.environ.pop("GEMINI_API_KEY", None)
 os.environ["SEED_DEFAULT_JOBS"] = "true"
 os.environ["ALLOW_PUBLIC_HR_REGISTRATION"] = "true"
 
-from app.core.database import SessionLocal  # noqa: E402
-from app.main import app  # noqa: E402
-from app.models.candidate import Candidate  # noqa: E402
-from app.models.job import Job  # noqa: E402
+import app.models
+from app.core.database import SessionLocal, Base, engine
+from app.main import app
+from app.models.candidate import Candidate
+from app.models.job import Job
+
+# Recreate all tables cleanly
+Base.metadata.drop_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
 
 @pytest.fixture(scope="session")
 def client():
     with TestClient(app) as test_client:
         yield test_client
-    from app.core.database import engine
     engine.dispose()
-    TEST_DB.unlink(missing_ok=True)
+    try:
+        os.unlink("./test.db")
+    except Exception:
+        pass
 
 
 @pytest.fixture(scope="session")
@@ -66,6 +72,7 @@ def accounts(client):
 
     return {
         "candidate_user_id": candidate_register.json()["user_id"],
+        "hr_user_id": hr_register.json()["user_id"],
         "candidate_headers": {"Authorization": f"Bearer {candidate_login.json()['access_token']}"},
         "hr_headers": {"Authorization": f"Bearer {hr_login.json()['access_token']}"},
     }
@@ -103,9 +110,11 @@ def test_candidate_application_and_hr_pipeline(client, accounts):
         candidate.skills = "Python, FastAPI, SQL, Git"
         candidate.education = "B.Tech Computer Science"
         candidate.experience = "One year of backend project experience"
-        db.commit()
+        
         job = db.query(Job).filter(Job.status == "Active").first()
         assert job is not None
+        job.created_by = accounts["hr_user_id"]
+        db.commit()
         job_id = job.id
 
     apply_response = client.post(
