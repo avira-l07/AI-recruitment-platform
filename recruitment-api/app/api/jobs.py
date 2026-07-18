@@ -10,7 +10,7 @@ from app.models.candidate import Candidate
 from app.schemas.job_schema import JobCreate, JobResponse
 from app.ai.job_matcher import calculate_hybrid_match
 from app.ai.job_intelligence import analyze_job_description
-from app.core.dependencies import get_current_user, require_roles, require_candidate, verify_candidate_ownership
+from app.core.dependencies import get_current_user, require_roles, require_candidate, verify_candidate_ownership, get_optional_user
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -124,9 +124,17 @@ def create_job(job: JobCreate, db: Session = Depends(get_db), current_user = Dep
 
 
 @router.get("", response_model=List[JobResponse])
-def get_all_jobs(active_only: bool = Query(False), db: Session = Depends(get_db)):
+def get_all_jobs(
+    active_only: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_optional_user)
+):
     query = db.query(Job)
-    if active_only:
+    if current_user and current_user.role == "hr":
+        query = query.filter(Job.created_by == current_user.id)
+        if active_only:
+            query = query.filter(Job.status == "Active")
+    else:
         query = query.filter(Job.status == "Active")
     return query.order_by(Job.created_at.desc()).all()
 
@@ -144,6 +152,8 @@ def close_job(job_id: int, payload: CloseJobRequest, db: Session = Depends(get_d
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    if job.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="You are not authorized to close this job.")
     job.status = "Closed"
     job.closed_reason = payload.reason
     job.closed_at = utc_now()
@@ -163,6 +173,8 @@ def reopen_job(job_id: int, db: Session = Depends(get_db), current_user = Depend
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    if job.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="You are not authorized to reopen this job.")
     job.status = "Active"
     job.closed_reason = None
     job.closed_at = None
