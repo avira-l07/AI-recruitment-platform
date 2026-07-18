@@ -24,8 +24,8 @@ def main() -> None:
     confirmation = getpass("Confirm password: ")
     if password != confirmation:
         raise SystemExit("Passwords do not match.")
-    if len(password) < 12:
-        raise SystemExit("Password must contain at least 12 characters.")
+    if len(password) < 10:
+        print("Password must be at least 10 characters.")
 
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:
