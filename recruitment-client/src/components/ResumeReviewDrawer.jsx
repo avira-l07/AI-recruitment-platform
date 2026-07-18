@@ -11,6 +11,7 @@ const getInitials = (name) => {
 const ResumeReviewDrawer = ({
   isOpen,
   onClose,
+  applicationId,
   candidate,
   onStatusUpdate
 }) => {
@@ -33,7 +34,7 @@ const ResumeReviewDrawer = ({
   const [zoom, setZoom] = useState(100);
 
   // Reset states and load resume data when candidate changes
-  const loadResumeData = async (userId) => {
+  const loadResumeData = async (appId, userId) => {
     setFileLoading(true);
     setProfileLoading(true);
     setFileError('');
@@ -55,7 +56,7 @@ const ResumeReviewDrawer = ({
     const signal = abortControllerRef.current.signal;
 
     // Load file and profile concurrently
-    const filePromise = resumeService.getResumeFile(userId, { signal });
+    const filePromise = resumeService.getApplicationResume(appId, { signal });
     const profilePromise = resumeService.getResume(userId, { signal });
 
     try {
@@ -87,7 +88,7 @@ const ResumeReviewDrawer = ({
   };
 
   useEffect(() => {
-    if (!isOpen || !candidate) {
+    if (!isOpen || !candidate || !applicationId) {
       // Clear all state values and clean up Blob URL on close / candidate clear
       if (fileUrl) {
         URL.revokeObjectURL(fileUrl);
@@ -106,8 +107,8 @@ const ResumeReviewDrawer = ({
     }
 
     const userId = candidate.user_id || candidate.userId;
-    if (userId) {
-      loadResumeData(userId);
+    if (applicationId && userId) {
+      loadResumeData(applicationId, userId);
     }
 
     return () => {
@@ -116,7 +117,7 @@ const ResumeReviewDrawer = ({
         abortControllerRef.current.abort();
       }
     };
-  }, [isOpen, candidate]);
+  }, [isOpen, candidate, applicationId]);
 
   // Clean up Object URL on unmount
   useEffect(() => {

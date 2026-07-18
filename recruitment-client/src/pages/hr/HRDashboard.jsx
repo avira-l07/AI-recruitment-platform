@@ -546,6 +546,7 @@ const HRDashboard = () => {
       <ResumeReviewDrawer
         isOpen={activeDrawer === 'resume-review'}
         onClose={closeDrawer}
+        applicationId={selectedCandidate?.application_id || selectedCandidate?.id}
         candidate={selectedCandidate}
         onStatusUpdate={updateStatus}
       />

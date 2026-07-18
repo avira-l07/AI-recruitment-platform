@@ -60,6 +60,30 @@ const resumeService = {
     };
   },
 
+  getApplicationResume: async (applicationId, config = {}) => {
+    const response = await api.get(`/applications/${applicationId}/resume`, {
+      responseType: 'blob',
+      ...config
+    });
+    return {
+      blob: response.data,
+      contentType: response.headers['content-type'] || response.headers['Content-Type'],
+      contentDisposition: response.headers['content-disposition'] || response.headers['Content-Disposition']
+    };
+  },
+
+  getMyResumeFile: async (config = {}) => {
+    const response = await api.get(`/resumes/me/download`, {
+      responseType: 'blob',
+      ...config
+    });
+    return {
+      blob: response.data,
+      contentType: response.headers['content-type'] || response.headers['Content-Type'],
+      contentDisposition: response.headers['content-disposition'] || response.headers['Content-Disposition']
+    };
+  },
+
   getAIStatus: async () => {
     const response = await api.get('/analytics/ai-status');
     return response.data;

@@ -45,7 +45,7 @@ const normalizeArray = (data) => (Array.isArray(data) ? data.map(normalizeMatch)
 
 const matchingService = {
   getAllMatches: async () => {
-    const response = await api.get('/matching/all');
+    const response = await api.get('/applications/hr/me');
     return normalizeArray(response.data);
   },
   getCandidateMatches: async (userId) => {
@@ -67,7 +67,7 @@ const matchingService = {
     return response.data;
   },
   applyToJob: async (_userId, jobId) => {
-    const response = await api.post('/matching/apply', { job_id: jobId });
+    const response = await api.post('/applications', { job_id: jobId });
     return response.data;
   },
 };
