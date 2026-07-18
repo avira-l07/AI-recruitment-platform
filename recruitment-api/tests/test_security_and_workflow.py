@@ -33,13 +33,13 @@ def override_get_db():
     finally:
         db.close()
 
-app.dependency_overrides[get_db] = override_get_db
-
 
 @pytest.fixture(scope="session")
 def client():
+    app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
         yield test_client
+    app.dependency_overrides.pop(get_db, None)
     engine.dispose()
     try:
         os.unlink("./test.db")

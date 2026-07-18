@@ -209,11 +209,11 @@ def update_match_status(
         raise HTTPException(status_code=403, detail="You are not authorized to update this application status.")
 
     VALID_TRANSITIONS = {
-        "Applied": {"AI Review", "Manual Review", "Shortlisted", "Rejected", "Withdrawn"},
-        "AI Review": {"Manual Review", "Shortlisted", "Rejected", "Withdrawn"},
-        "Manual Review": {"Shortlisted", "Rejected", "Withdrawn"},
-        "Shortlisted": {"Interview", "Rejected", "Withdrawn"},
-        "Interview": {"Offer", "Rejected", "Withdrawn"},
+        "Applied": {"AI Review", "Manual Review", "Shortlisted", "Interview", "Offer", "Hired", "Rejected", "Withdrawn"},
+        "AI Review": {"Manual Review", "Shortlisted", "Interview", "Offer", "Hired", "Rejected", "Withdrawn"},
+        "Manual Review": {"Shortlisted", "Interview", "Offer", "Hired", "Rejected", "Withdrawn"},
+        "Shortlisted": {"Interview", "Offer", "Hired", "Rejected", "Withdrawn"},
+        "Interview": {"Offer", "Hired", "Rejected", "Withdrawn"},
         "Offer": {"Hired", "Rejected", "Withdrawn"},
         "Hired": set(),
         "Rejected": set(),

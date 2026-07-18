@@ -55,7 +55,9 @@ def setup_db():
         db.commit()
     finally:
         db.close()
+    app.dependency_overrides[get_db] = override_get_db
     yield
+    app.dependency_overrides.pop(get_db, None)
     engine.dispose()
     if os.path.exists("test_recruitment.db"):
         try:
@@ -70,7 +72,6 @@ def override_get_db():
     finally:
         db.close()
 
-app.dependency_overrides[get_db] = override_get_db
 client = TestClient(app)
 
 def get_auth_headers(user_id: int, role: str):

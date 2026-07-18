@@ -73,7 +73,7 @@ def submit_application(db: Session, job_id: int, current_user: User) -> dict:
     if existing_app:
         raise HTTPException(status_code=409, detail="You have already applied to this job.")
         
-    application = Application(candidate_id=candidate.id, job_id=job.id, status="Applied")
+    application = Application(candidate_id=candidate.id, job_id=job.id, status="AI Review")
     db.add(application)
     try:
         db.flush()
@@ -126,6 +126,7 @@ def submit_application(db: Session, job_id: int, current_user: User) -> dict:
         fallback_reason=fallback_reason,
     )
     db.add(match)
+    application.status = "Manual Review"
     db.commit()
     
     # Notify only the job-owning HR
@@ -168,6 +169,11 @@ def submit_application(db: Session, job_id: int, current_user: User) -> dict:
         "created_at": application.applied_at.isoformat() if hasattr(application.applied_at, "isoformat") else str(application.applied_at),
         "match_id": match.id,
         "score": match.score,
+        "confidence_score": match.confidence_score,
+        "confidence_label": match.confidence_label,
+        "fit_label": match.fit_label,
+        "fallback_reason": match.fallback_reason,
+        "ai_source": match.ai_source,
     }
 
 

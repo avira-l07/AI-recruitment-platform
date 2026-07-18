@@ -33,13 +33,13 @@ def override_get_db():
     finally:
         db.close()
 
-app.dependency_overrides[get_db] = override_get_db
-
 
 @pytest.fixture(scope="module")
 def client():
+    app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
         yield test_client
+    app.dependency_overrides.pop(get_db, None)
     engine.dispose()
 
 
@@ -168,7 +168,7 @@ def test_candidate_successful_application(client, setup_data):
     assert res.status_code == 200
     payload = res.json()
     assert payload["message"] == "Application submitted successfully."
-    assert payload["status"] == "Applied"
+    assert payload["status"] == "Manual Review"
     assert "application_id" in payload
     assert payload["job_id"] == setup_data["job1_id"]
     assert "created_at" in payload
