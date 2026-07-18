@@ -18,24 +18,35 @@ def global_search(
     q: str = Query(..., min_length=2, max_length=100),
     limit: int = Query(8, ge=1, le=20),
     db: Session = Depends(get_db),
-    _: User = Depends(require_hr),
+    current_user: User = Depends(require_hr),
 ):
     term = f"%{q.strip()}%"
     candidates = (
         db.query(Candidate)
+        .join(Application, Candidate.id == Application.candidate_id)
+        .join(Job, Application.job_id == Job.id)
+        .filter(Job.created_by == current_user.id)
         .filter(or_(Candidate.full_name.ilike(term), Candidate.email.ilike(term), Candidate.skills.ilike(term)))
+        .distinct()
         .limit(limit)
         .all()
     )
     jobs = (
         db.query(Job)
+        .filter(Job.created_by == current_user.id)
         .filter(or_(Job.title.ilike(term), Job.required_skills.ilike(term), Job.description.ilike(term)))
         .limit(limit)
         .all()
     )
     application_results = []
     if q.strip().isdigit():
-        application = db.query(Application).filter(Application.id == int(q.strip())).first()
+        application = (
+            db.query(Application)
+            .join(Job, Application.job_id == Job.id)
+            .filter(Job.created_by == current_user.id)
+            .filter(Application.id == int(q.strip()))
+            .first()
+        )
         if application:
             application_results.append({
                 "id": application.id,

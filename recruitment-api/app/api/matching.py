@@ -115,9 +115,9 @@ def get_all_matches(
     status: str | None = None,
     minimum_score: float | None = Query(None, ge=0, le=100),
     db: Session = Depends(get_db),
-    _: User = Depends(require_hr),
+    current_user: User = Depends(require_hr),
 ):
-    query = _base_query(db)
+    query = _base_query(db).filter(Job.created_by == current_user.id)
     if status:
         query = query.filter(Application.status == status)
     if minimum_score is not None:
@@ -154,7 +154,12 @@ def get_candidate_matches(
     candidate = db.query(Candidate).filter(Candidate.user_id == user_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate profile not found.")
-    rows = _base_query(db).filter(Application.candidate_id == candidate.id).order_by(Application.applied_at.desc()).all()
+    
+    query = _base_query(db).filter(Application.candidate_id == candidate.id)
+    if current_user.role == "hr":
+        query = query.filter(Job.created_by == current_user.id)
+        
+    rows = query.order_by(Application.applied_at.desc()).all()
     return [_match_payload(*row) for row in rows]
 
 
@@ -162,10 +167,13 @@ def get_candidate_matches(
 def get_job_matches(
     job_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_hr),
+    current_user: User = Depends(require_hr),
 ):
-    if not db.query(Job).filter(Job.id == job_id).first():
+    job = db.query(Job).filter(Job.id == job_id).first()
+    if not job:
         raise HTTPException(status_code=404, detail="Job not found.")
+    if job.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="You are not authorized to access this job's applications.")
     rows = _base_query(db).filter(Application.job_id == job_id).order_by(Application.applied_at.desc()).all()
     return [_match_payload(*row) for row in rows]
 
@@ -302,6 +310,14 @@ def update_match_status(
     if not application:
         raise HTTPException(status_code=404, detail="Application not found.")
 
+    job = db.query(Job).filter(Job.id == application.job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    # Scope security check
+    if job.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="You are not authorized to update this application status.")
+
     if application.status in {"Hired", "Rejected", "Withdrawn"} and payload.status != application.status:
         raise HTTPException(status_code=409, detail=f"Cannot change status of a completed/terminal '{application.status}' application.")
 
@@ -312,6 +328,9 @@ def update_match_status(
         application.rejection_reason = payload.reason
     if payload.status == "Withdrawn":
         application.withdrawn_at = utc_now()
+
+    db.commit()
+    db.refresh(application)
 
     candidate = db.query(Candidate).filter(Candidate.id == application.candidate_id).first()
     if candidate:
@@ -330,6 +349,4 @@ def update_match_status(
                 "application",
                 application.id,
             )
-    db.commit()
-    db.refresh(application)
     return {"message": "Application status updated successfully.", "status": application.status}

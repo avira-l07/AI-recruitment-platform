@@ -14,9 +14,9 @@ from collections import Counter
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 
-def _pipeline(db: Session) -> dict:
+def _pipeline(db: Session, hr_id: int) -> dict:
     statuses = {
-        name: db.query(Application).filter(Application.status == name).count()
+        name: db.query(Application).join(Job, Application.job_id == Job.id).filter(Job.created_by == hr_id, Application.status == name).count()
         for name in [
             "Applied",
             "AI Review",
@@ -29,9 +29,11 @@ def _pipeline(db: Session) -> dict:
             "Withdrawn",
         ]
     }
+    total_applied = db.query(Application).join(Job, Application.job_id == Job.id).filter(Job.created_by == hr_id).count()
+    total_ai_review = db.query(MatchScore).join(Job, MatchScore.job_id == Job.id).filter(Job.created_by == hr_id).count()
     return {
-        "applied": db.query(Application).count(),
-        "ai_review": db.query(MatchScore).count(),
+        "applied": total_applied,
+        "ai_review": total_ai_review,
         "manual_review": statuses["Manual Review"],
         "shortlisted": statuses["Shortlisted"],
         "interview": statuses["Interview"],
@@ -44,37 +46,43 @@ def _pipeline(db: Session) -> dict:
 
 @router.get("/pipeline")
 def get_pipeline(db: Session = Depends(get_db), current_user = Depends(require_roles(["hr"]))):
-    return _pipeline(db)
+    return _pipeline(db, current_user.id)
 
 
 @router.get("/overview")
 def get_overview(db: Session = Depends(get_db), current_user = Depends(require_roles(["hr"]))):
-    total_candidates = db.query(Candidate).count()
-    total_jobs = db.query(Job).count()
-    active_jobs = db.query(Job).filter(Job.status == "Active").count()
-    total_applications = db.query(Application).count()
+    hr_id = current_user.id
+    
+    total_candidates = db.query(Candidate).join(Application, Candidate.id == Application.candidate_id).join(Job, Application.job_id == Job.id).filter(Job.created_by == hr_id).distinct().count()
+    total_jobs = db.query(Job).filter(Job.created_by == hr_id).count()
+    active_jobs = db.query(Job).filter(Job.created_by == hr_id, Job.status == "Active").count()
+    total_applications = db.query(Application).join(Job, Application.job_id == Job.id).filter(Job.created_by == hr_id).count()
 
-    avg_score_raw = db.query(func.avg(MatchScore.score)).scalar()
+    avg_score_raw = db.query(func.avg(MatchScore.score)).join(Job, MatchScore.job_id == Job.id).filter(Job.created_by == hr_id).scalar()
     average_match_score = round(float(avg_score_raw), 1) if avg_score_raw is not None else 0.0
-    avg_confidence_raw = db.query(func.avg(MatchScore.confidence_score)).scalar()
+    avg_confidence_raw = db.query(func.avg(MatchScore.confidence_score)).join(Job, MatchScore.job_id == Job.id).filter(Job.created_by == hr_id).scalar()
     average_confidence = round(float(avg_confidence_raw), 1) if avg_confidence_raw is not None else None
 
-    strong = db.query(MatchScore).filter(MatchScore.score >= 70).count()
-    moderate = db.query(MatchScore).filter(MatchScore.score >= 40, MatchScore.score < 70).count()
-    weak = db.query(MatchScore).filter(MatchScore.score < 40).count()
+    strong = db.query(MatchScore).join(Job, MatchScore.job_id == Job.id).filter(Job.created_by == hr_id, MatchScore.score >= 70).count()
+    moderate = db.query(MatchScore).join(Job, MatchScore.job_id == Job.id).filter(Job.created_by == hr_id, MatchScore.score >= 40, MatchScore.score < 70).count()
+    weak = db.query(MatchScore).join(Job, MatchScore.job_id == Job.id).filter(Job.created_by == hr_id, MatchScore.score < 40).count()
 
     skill_counter = Counter()
-    for (skills_text,) in db.query(Candidate.skills).all():
+    skills_list = db.query(Candidate.skills).join(Application, Candidate.id == Application.candidate_id).join(Job, Application.job_id == Job.id).filter(Job.created_by == hr_id).all()
+    for (skills_text,) in skills_list:
         if skills_text:
             skill_counter.update(s.strip() for s in skills_text.split(",") if s.strip())
 
-    pipeline = _pipeline(db)
-    hybrid_analyses = db.query(MatchScore).filter(MatchScore.ai_source == "hybrid").count()
-    fallback_analyses = db.query(MatchScore).filter(MatchScore.fallback_active.is_(True)).count()
-    gemini_failures = db.query(AIAnalysisJob).filter(
+    pipeline = _pipeline(db, hr_id)
+    hybrid_analyses = db.query(MatchScore).join(Job, MatchScore.job_id == Job.id).filter(Job.created_by == hr_id, MatchScore.ai_source == "hybrid").count()
+    fallback_analyses = db.query(MatchScore).join(Job, MatchScore.job_id == Job.id).filter(Job.created_by == hr_id, MatchScore.fallback_active.is_(True)).count()
+    
+    gemini_failures = db.query(AIAnalysisJob).join(Job, AIAnalysisJob.job_id == Job.id).filter(
+        Job.created_by == hr_id,
         AIAnalysisJob.gemini_status.in_(["failed", "rate_limited", "authentication_failed", "unavailable"])
     ).count()
-    completed_analyses = db.query(AIAnalysisJob).filter(
+    completed_analyses = db.query(AIAnalysisJob).join(Job, AIAnalysisJob.job_id == Job.id).filter(
+        Job.created_by == hr_id,
         AIAnalysisJob.current_stage.in_(["completed", "fallback_completed"])
     ).count()
 
@@ -102,15 +110,17 @@ def get_overview(db: Session = Depends(get_db), current_user = Depends(require_r
 
 @router.get("/ai-status")
 def get_ai_status(db: Session = Depends(get_db), current_user = Depends(require_roles(["hr"]))):
-    total_resumes = db.query(Resume).count()
-    completed = db.query(Resume).filter(Resume.status == "completed").count()
-    generating = db.query(Resume).filter(Resume.status == "generating").count()
-    failed = db.query(Resume).filter(Resume.status == "failed").count()
-    not_generated = db.query(Resume).filter(Resume.status == "not_generated").count()
+    hr_id = current_user.id
     
-    quota_exceeded = db.query(Resume).filter(Resume.error_type == "quota_exceeded").count()
-    timeouts = db.query(Resume).filter(Resume.error_type == "timeout").count()
-    malformed = db.query(Resume).filter(Resume.error_type == "malformed_response").count()
+    total_resumes = db.query(Resume).join(Candidate, Resume.candidate_id == Candidate.id).join(Application, Candidate.id == Application.candidate_id).join(Job, Application.job_id == Job.id).filter(Job.created_by == hr_id).distinct().count()
+    completed = db.query(Resume).join(Candidate, Resume.candidate_id == Candidate.id).join(Application, Candidate.id == Application.candidate_id).join(Job, Application.job_id == Job.id).filter(Job.created_by == hr_id, Resume.status == "completed").distinct().count()
+    generating = db.query(Resume).join(Candidate, Resume.candidate_id == Candidate.id).join(Application, Candidate.id == Application.candidate_id).join(Job, Application.job_id == Job.id).filter(Job.created_by == hr_id, Resume.status == "generating").distinct().count()
+    failed = db.query(Resume).join(Candidate, Resume.candidate_id == Candidate.id).join(Application, Candidate.id == Application.candidate_id).join(Job, Application.job_id == Job.id).filter(Job.created_by == hr_id, Resume.status == "failed").distinct().count()
+    not_generated = db.query(Resume).join(Candidate, Resume.candidate_id == Candidate.id).join(Application, Candidate.id == Application.candidate_id).join(Job, Application.job_id == Job.id).filter(Job.created_by == hr_id, Resume.status == "not_generated").distinct().count()
+    
+    quota_exceeded = db.query(Resume).join(Candidate, Resume.candidate_id == Candidate.id).join(Application, Candidate.id == Application.candidate_id).join(Job, Application.job_id == Job.id).filter(Job.created_by == hr_id, Resume.error_type == "quota_exceeded").distinct().count()
+    timeouts = db.query(Resume).join(Candidate, Resume.candidate_id == Candidate.id).join(Application, Candidate.id == Application.candidate_id).join(Job, Application.job_id == Job.id).filter(Job.created_by == hr_id, Resume.error_type == "timeout").distinct().count()
+    malformed = db.query(Resume).join(Candidate, Resume.candidate_id == Candidate.id).join(Application, Candidate.id == Application.candidate_id).join(Job, Application.job_id == Job.id).filter(Job.created_by == hr_id, Resume.error_type == "malformed_response").distinct().count()
     
     return {
         "engine": "Gemini-2.5-Flash (Hybrid Mode)",

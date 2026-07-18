@@ -83,7 +83,7 @@ def get_analysis_job(
     }
 
 
-def _ground_recruiter_answer(message: str, db: Session):
+def _ground_recruiter_answer(message: str, db: Session, hr_user: User):
     lower = message.lower()
     actions = []
 
@@ -93,6 +93,7 @@ def _ground_recruiter_answer(message: str, db: Session):
             .join(MatchScore, MatchScore.application_id == Application.id)
             .join(Candidate, Application.candidate_id == Candidate.id)
             .join(Job, Application.job_id == Job.id)
+            .filter(Job.created_by == hr_user.id)
             .order_by(MatchScore.score.desc())
             .limit(5)
             .all()
@@ -116,15 +117,15 @@ def _ground_recruiter_answer(message: str, db: Session):
         return answer, actions, {"candidates": facts}
 
     if "job" in lower:
-        jobs = db.query(Job).order_by(Job.created_at.desc()).limit(8).all()
+        jobs = db.query(Job).filter(Job.created_by == hr_user.id).order_by(Job.created_at.desc()).limit(8).all()
         active = [job for job in jobs if job.status == "Active"]
-        answer = f"There are {db.query(Job).filter(Job.status == 'Active').count()} active jobs."
+        answer = f"There are {len(active)} active jobs."
         actions = [{"type": "open_job", "job_id": job.id, "label": f"Open {job.title}"} for job in active[:5]]
         return answer, actions, {"active_jobs": [{"id": j.id, "title": j.title} for j in active]}
 
-    total = db.query(Application).count()
-    manual = db.query(Application).filter(Application.status == "Manual Review").count()
-    shortlisted = db.query(Application).filter(Application.status == "Shortlisted").count()
+    total = db.query(Application).join(Job, Application.job_id == Job.id).filter(Job.created_by == hr_user.id).count()
+    manual = db.query(Application).join(Job, Application.job_id == Job.id).filter(Job.created_by == hr_user.id, Application.status == "Manual Review").count()
+    shortlisted = db.query(Application).join(Job, Application.job_id == Job.id).filter(Job.created_by == hr_user.id, Application.status == "Shortlisted").count()
     answer = f"Recruitment overview: {total} applications, {manual} awaiting manual review, and {shortlisted} shortlisted."
     return answer, [], {"total_applications": total, "manual_review": manual, "shortlisted": shortlisted}
 
@@ -136,9 +137,9 @@ def _ground_recruiter_answer(message: str, db: Session):
 def ask_recruiter(
     payload: RecruiterAssistantRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(require_hr),
+    current_user: User = Depends(require_hr),
 ):
-    grounded_answer, actions, facts = _ground_recruiter_answer(payload.message, db)
+    grounded_answer, actions, facts = _ground_recruiter_answer(payload.message, db, current_user)
     source = "local_ai"
     prompt = f"""
 You are RecruitAI, an HR decision-support assistant. Use only the supplied database facts.

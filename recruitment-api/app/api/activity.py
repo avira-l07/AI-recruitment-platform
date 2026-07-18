@@ -38,7 +38,10 @@ def stream_activity(
                         (ActivityEvent.candidate_id == candidate_id) |
                         (ActivityEvent.user_id == current_user.id)
                     )
-                # HR sees all events, so no filtering if role is HR.
+                elif current_user.role == "hr":
+                    from app.models.job import Job
+                    job_ids = [j.id for j in db.query(Job.id).filter(Job.created_by == current_user.id).all()]
+                    query = query.filter(ActivityEvent.job_id.in_(job_ids))
                 
                 events = query.order_by(ActivityEvent.id.asc()).all()
                 for e in events:
