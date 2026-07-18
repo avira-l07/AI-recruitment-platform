@@ -9,7 +9,7 @@ from app.core.database import engine, Base, SessionLocal
 
 import app.models
 
-from app.api import auth, candidates, resumes, jobs as jobs_api, matching, analytics, ai, activity, notifications, search
+from app.api import auth, candidates, resumes, jobs as jobs_api, matching, analytics, ai, activity, notifications, search, applications
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -50,6 +50,7 @@ app.include_router(activity.router)
 app.include_router(ai.router)
 app.include_router(notifications.router)
 app.include_router(search.router)
+app.include_router(applications.router)
 
 @app.get("/")
 def root():

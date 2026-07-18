@@ -9,7 +9,7 @@ from app.core.database import Base
 class Application(Base):
     __tablename__ = "applications"
     __table_args__ = (
-        UniqueConstraint("candidate_id", "job_id", name="uq_application_candidate_job"),
+        UniqueConstraint("candidate_id", "job_id", name="uq_candidate_job_application"),
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
