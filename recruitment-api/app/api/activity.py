@@ -75,3 +75,30 @@ def stream_activity(
                 loop_counter = 0
                 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+from pydantic import BaseModel
+from app.core.dependencies import require_hr
+from app.utils.activity_logger import publish_event
+
+
+class BlindScreeningTogglePayload(BaseModel):
+    enabled: bool
+
+
+@router.post("/blind-screening-toggle")
+def toggle_blind_screening_audit(
+    payload: BlindScreeningTogglePayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_hr),
+):
+    event_type = "blind_screening_enabled" if payload.enabled else "blind_screening_disabled"
+    publish_event(
+        db=db,
+        event_type=event_type,
+        candidate_id=None,
+        user_id=current_user.id,
+        details={"enabled": payload.enabled, "actor": "hr_user"}
+    )
+    db.commit()
+    return {"message": f"Blind screening {event_type} recorded successfully.", "enabled": payload.enabled}

@@ -26,7 +26,9 @@ import authService from "../../services/authService";
 import resumeService from "../../services/resumeService";
 import matchingService from "../../services/matchingService";
 import jobService from "../../services/jobService";
+import prescreeningService from "../../services/prescreeningService";
 import LoadingSpinner from "../../components/LoadingSpinner";
+import CandidatePrescreeningModal from "../../components/prescreening/CandidatePrescreeningModal";
 import "./CandidateDashboard.css";
 
 // Helper to normalize lists
@@ -917,6 +919,9 @@ export default function CandidateDashboard() {
   const [jobsError, setJobsError] = useState(null);
   const [applyingId, setApplyingId] = useState(null);
   const [appliedIds, setAppliedIds] = useState(new Set());
+  const [activePrescreeningJob, setActivePrescreeningJob] = useState(null);
+  const [prescreeningQuestions, setPrescreeningQuestions] = useState([]);
+  const [isSubmittingPrescreening, setIsSubmittingPrescreening] = useState(false);
 
   const [notifications, setNotifications] = useState([]);
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
@@ -1073,6 +1078,20 @@ export default function CandidateDashboard() {
     if (!userId) return;
     setApplyingId(jobId);
     try {
+      // Check if job has pre-screening questions
+      try {
+        const questions = await prescreeningService.getJobQuestions(jobId);
+        if (Array.isArray(questions) && questions.length > 0) {
+          const targetJob = jobs.find(j => (j.job_id || j.id) === jobId) || { id: jobId, title: "Job Posting" };
+          setActivePrescreeningJob({ id: jobId, title: targetJob.title || "Job Posting" });
+          setPrescreeningQuestions(questions);
+          setApplyingId(null);
+          return;
+        }
+      } catch (qErr) {
+        // If error fetching questions, fallback to normal apply
+      }
+
       await matchingService.applyToJob(userId, jobId);
       setAppliedIds((prev) => new Set(prev).add(jobId));
       // Refresh matches in background
@@ -1083,6 +1102,24 @@ export default function CandidateDashboard() {
       alert(err.response?.data?.detail || "Could not submit your application. Please try again.");
     } finally {
       setApplyingId(null);
+    }
+  };
+
+  const handlePrescreeningSubmit = async (answers) => {
+    if (!activePrescreeningJob || !userId) return;
+    setIsSubmittingPrescreening(true);
+    try {
+      await matchingService.applyToJob(userId, activePrescreeningJob.id, answers);
+      setAppliedIds((prev) => new Set(prev).add(activePrescreeningJob.id));
+      const matchRes = await matchingService.getCandidateMatches(userId);
+      setMatches(matchRes || []);
+      setActivePrescreeningJob(null);
+      setPrescreeningQuestions([]);
+    } catch (err) {
+      console.error("Failed to submit pre-screening application", err);
+      alert(err.response?.data?.detail || "Could not submit your application. Please try again.");
+    } finally {
+      setIsSubmittingPrescreening(false);
     }
   };
 
@@ -1225,6 +1262,21 @@ export default function CandidateDashboard() {
           </>
         )}
       </main>
+
+      {/* Candidate Pre-Screening Questionnaire Modal */}
+      {activePrescreeningJob && (
+        <CandidatePrescreeningModal
+          isOpen={Boolean(activePrescreeningJob)}
+          onClose={() => {
+            setActivePrescreeningJob(null);
+            setPrescreeningQuestions([]);
+          }}
+          job={activePrescreeningJob}
+          questions={prescreeningQuestions}
+          onSubmit={handlePrescreeningSubmit}
+          isSubmitting={isSubmittingPrescreening}
+        />
+      )}
     </div>
   );
 }

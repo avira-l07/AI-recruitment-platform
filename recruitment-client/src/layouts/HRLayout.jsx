@@ -7,13 +7,15 @@ import aiService from '../services/aiService';
 import notificationService from '../services/notificationService';
 import searchService from '../services/searchService';
 import NotificationBell from '../components/NotificationBell';
-import { X, Search, Bell, Cpu, Check, AlertTriangle, XCircle, Menu } from 'lucide-react';
+import { useBlindScreening } from '../context/BlindScreeningContext';
+import { X, Search, Bell, Cpu, Check, AlertTriangle, XCircle, Menu, Shield, ShieldCheck } from 'lucide-react';
 import './HRLayout.css';
 
 const HRLayout = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const user = authService.getCurrentUser() || {};
+  const { isBlindMode, toggleBlindMode } = useBlindScreening();
   
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showEngineStatus, setShowEngineStatus] = useState(false);
@@ -266,6 +268,28 @@ const HRLayout = ({ children }) => {
           </div>
 
           <div className="hr-topbar-actions">
+            {/* Fair Review / Blind Screening Toggle */}
+            <div className="hr-fair-review-toggle-wrapper">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isBlindMode}
+                onClick={toggleBlindMode}
+                className={`hr-fair-review-toggle-btn ${isBlindMode ? 'active' : ''}`}
+                title={isBlindMode ? "Fair Review Mode is ON (Candidate PII is concealed to prevent bias)" : "Fair Review Mode is OFF (Click to conceal PII and evaluate purely on skills & merit)"}
+              >
+                <div className="hr-fair-review-toggle-icon">
+                  {isBlindMode ? <ShieldCheck size={14} /> : <Shield size={14} />}
+                </div>
+                <span className="hr-fair-review-toggle-text">
+                  Fair Review: <strong>{isBlindMode ? 'ON' : 'OFF'}</strong>
+                </span>
+                <span className={`hr-fair-review-switch-pill ${isBlindMode ? 'on' : 'off'}`}>
+                  <span className="hr-fair-review-switch-thumb" />
+                </span>
+              </button>
+            </div>
+
             {/* AI Status Badge & Popover */}
             <div className="hr-engine-status-button-wrapper">
               <button 

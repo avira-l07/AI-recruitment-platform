@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { UserPlus, Search, ShieldAlert, KeyRound, CheckCircle, XCircle, RefreshCw, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, Search, KeyRound, CheckCircle, XCircle, RefreshCw, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import adminService from '../services/adminService';
 import './AdminHRAccounts.css';
 
 const AdminHRAccounts = () => {
   const [hrAccounts, setHrAccounts] = useState([]);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize] = useState(20);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
@@ -19,9 +19,10 @@ const AdminHRAccounts = () => {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Modals state
+  // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [showTerminateModal, setShowTerminateModal] = useState(false);
   const [targetHR, setTargetHR] = useState(null);
 
   // Form states
@@ -68,6 +69,7 @@ const AdminHRAccounts = () => {
     fetchAccounts();
   }, [fetchAccounts]);
 
+  // CREATE
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
     setFormError('');
@@ -80,8 +82,11 @@ const AdminHRAccounts = () => {
     setFormLoading(true);
     try {
       await adminService.createHRAccount(createForm);
-      setSuccessMsg(`HR login account created for ${createForm.email}. Share the temporary password securely.`);
+      setSuccessMsg(
+        `HR login created successfully for ${createForm.email}. Share the temporary password securely. The HR must change it during first login.`
+      );
       setCreateForm({ full_name: '', email: '', temporary_password: '', confirm_temporary_password: '' });
+      setShowCreatePass(false);
       setShowCreateModal(false);
       setPage(1);
       fetchAccounts();
@@ -92,20 +97,36 @@ const AdminHRAccounts = () => {
     }
   };
 
-  const handleStatusToggle = async (hr) => {
-    const nextStatus = !hr.is_active;
-    const actionText = nextStatus ? 'activate' : 'deactivate';
-    if (!window.confirm(`Are you sure you want to ${actionText} HR account for ${hr.email}?`)) return;
-
+  // TERMINATE
+  const handleTerminate = async () => {
+    if (!targetHR) return;
+    setFormLoading(true);
+    setFormError('');
     try {
-      const res = await adminService.updateHRAccountStatus(hr.id, nextStatus);
+      const res = await adminService.terminateHRAccount(targetHR.id);
       setSuccessMsg(res.message);
+      setShowTerminateModal(false);
+      setTargetHR(null);
       fetchAccounts();
     } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Failed to update HR status');
+      setFormError(err.response?.data?.detail || err.message || 'Failed to terminate HR account');
+    } finally {
+      setFormLoading(false);
     }
   };
 
+  // REACTIVATE
+  const handleReactivate = async (hr) => {
+    try {
+      const res = await adminService.reactivateHRAccount(hr.id);
+      setSuccessMsg(res.message);
+      fetchAccounts();
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || 'Failed to reactivate HR account');
+    }
+  };
+
+  // RESET PASSWORD
   const handleResetSubmit = async (e) => {
     e.preventDefault();
     setFormError('');
@@ -120,6 +141,7 @@ const AdminHRAccounts = () => {
       const res = await adminService.resetHRPassword(targetHR.id, resetForm);
       setSuccessMsg(res.message);
       setResetForm({ temporary_password: '', confirm_temporary_password: '' });
+      setShowResetPass(false);
       setShowResetModal(false);
       fetchAccounts();
     } catch (err) {
@@ -134,18 +156,18 @@ const AdminHRAccounts = () => {
       <div className="admin-header">
         <div className="admin-title-area">
           <h1>HR Account Management</h1>
-          <p>Create, manage, activate, and reset credentials for HR team accounts.</p>
+          <p>Create, manage, terminate, and reset credentials for HR login accounts.</p>
         </div>
         <button className="btn-create-hr" onClick={() => { setShowCreateModal(true); setFormError(''); }}>
           <UserPlus size={18} />
-          Create HR Account
+          Create HR Login
         </button>
       </div>
 
       {successMsg && (
-        <div className="error-banner" style={{ background: 'rgba(16, 185, 129, 0.15)', borderColor: 'rgba(16, 185, 129, 0.3)', color: '#34d399' }}>
+        <div className="success-banner">
           {successMsg}
-          <button style={{ float: 'right', background: 'none', border: 'none', color: '#34d399', cursor: 'pointer' }} onClick={() => setSuccessMsg('')}>✕</button>
+          <button className="banner-close" onClick={() => setSuccessMsg('')}>✕</button>
         </div>
       )}
 
@@ -165,7 +187,7 @@ const AdminHRAccounts = () => {
         <select className="filter-select" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
           <option value="all">All Statuses</option>
           <option value="active">Active Only</option>
-          <option value="inactive">Inactive Only</option>
+          <option value="inactive">Terminated Only</option>
         </select>
 
         <select className="filter-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
@@ -195,10 +217,10 @@ const AdminHRAccounts = () => {
           <table className="hr-table">
             <thead>
               <tr>
-                <th>HR Name</th>
+                <th>Name</th>
                 <th>Email</th>
                 <th>Status</th>
-                <th>Password Change</th>
+                <th>Password Change Required</th>
                 <th>Created</th>
                 <th>Last Login</th>
                 <th>Actions</th>
@@ -212,30 +234,39 @@ const AdminHRAccounts = () => {
                   <td>
                     <span className={`status-badge ${hr.is_active ? 'active' : 'inactive'}`}>
                       {hr.is_active ? <CheckCircle size={12} /> : <XCircle size={12} />}
-                      {hr.is_active ? 'Active' : 'Inactive'}
+                      {hr.is_active ? 'Active' : 'Terminated'}
                     </span>
                   </td>
                   <td>
                     <span className={`pwd-flag-badge ${hr.must_change_password ? 'required' : 'normal'}`}>
-                      {hr.must_change_password ? 'Password Change Required' : 'Normal'}
+                      {hr.must_change_password ? 'Required' : '—'}
                     </span>
                   </td>
                   <td>{new Date(hr.created_at).toLocaleDateString()}</td>
                   <td>{hr.last_login_at ? new Date(hr.last_login_at).toLocaleString() : 'Never'}</td>
                   <td>
                     <div className="action-buttons">
-                      <button
-                        className={`btn-action ${hr.is_active ? 'deactivate' : 'activate'}`}
-                        onClick={() => handleStatusToggle(hr)}
-                      >
-                        {hr.is_active ? 'Deactivate' : 'Activate'}
-                      </button>
+                      {hr.is_active ? (
+                        <button
+                          className="btn-action deactivate"
+                          onClick={() => { setTargetHR(hr); setShowTerminateModal(true); setFormError(''); }}
+                        >
+                          Terminate
+                        </button>
+                      ) : (
+                        <button
+                          className="btn-action activate"
+                          onClick={() => handleReactivate(hr)}
+                        >
+                          Reactivate
+                        </button>
+                      )}
                       <button
                         className="btn-action"
-                        onClick={() => { setTargetHR(hr); setShowResetModal(true); setFormError(''); }}
+                        onClick={() => { setTargetHR(hr); setShowResetModal(true); setFormError(''); setResetForm({ temporary_password: '', confirm_temporary_password: '' }); setShowResetPass(false); }}
                       >
                         <KeyRound size={13} style={{ display: 'inline', marginRight: 4 }} />
-                        Reset Pwd
+                        Reset Password
                       </button>
                     </div>
                   </td>
@@ -260,10 +291,43 @@ const AdminHRAccounts = () => {
         </div>
       </div>
 
+      {/* TERMINATE CONFIRMATION MODAL */}
+      {showTerminateModal && targetHR && (
+        <div className="modal-overlay" onClick={() => { if (!formLoading) setShowTerminateModal(false); }}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'rgba(239, 68, 68, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <AlertTriangle size={22} color="#ef4444" />
+              </div>
+              <h3 className="modal-title" style={{ marginBottom: 0 }}>Terminate HR Login?</h3>
+            </div>
+            <p className="modal-desc" style={{ lineHeight: 1.6 }}>
+              <strong>{targetHR.full_name}</strong> ({targetHR.email}) will immediately lose login and platform access.
+              Their jobs, applications, candidates, resumes, and recruitment history will remain preserved.
+            </p>
+
+            {formError && <div className="error-banner">{formError}</div>}
+
+            <div className="modal-actions">
+              <button type="button" className="btn-secondary" disabled={formLoading} onClick={() => setShowTerminateModal(false)}>Cancel</button>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ background: '#ef4444' }}
+                disabled={formLoading}
+                onClick={handleTerminate}
+              >
+                {formLoading ? 'Terminating...' : 'Confirm Termination'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CREATE HR MODAL */}
       {showCreateModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
+        <div className="modal-overlay" onClick={() => { if (!formLoading) setShowCreateModal(false); }}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <h3 className="modal-title">Create HR Login Account</h3>
             <p className="modal-desc">Create a new HR account with temporary login credentials.</p>
 
@@ -313,6 +377,9 @@ const AdminHRAccounts = () => {
                     {showCreatePass ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
+                <div style={{ marginTop: 8, fontSize: '0.72rem', color: '#64748b', lineHeight: 1.5 }}>
+                  Minimum 10 characters, at least one uppercase, one lowercase, one number, and one special character.
+                </div>
               </div>
 
               <div className="form-group" style={{ marginBottom: 14 }}>
@@ -330,7 +397,7 @@ const AdminHRAccounts = () => {
               <div className="modal-actions">
                 <button type="button" className="btn-secondary" onClick={() => setShowCreateModal(false)}>Cancel</button>
                 <button type="submit" className="btn-primary" disabled={formLoading}>
-                  {formLoading ? 'Creating...' : 'Create HR Account'}
+                  {formLoading ? 'Creating...' : 'Create HR Login'}
                 </button>
               </div>
             </form>
@@ -340,10 +407,12 @@ const AdminHRAccounts = () => {
 
       {/* RESET PASSWORD MODAL */}
       {showResetModal && targetHR && (
-        <div className="modal-overlay">
-          <div className="modal-card">
+        <div className="modal-overlay" onClick={() => { if (!formLoading) setShowResetModal(false); }}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <h3 className="modal-title">Reset HR Password</h3>
-            <p className="modal-desc">Issue a new temporary password for <strong>{targetHR.email}</strong>.</p>
+            <p className="modal-desc">
+              Issue a new temporary password for <strong>{targetHR.full_name}</strong> ({targetHR.email}).
+            </p>
 
             {formError && <div className="error-banner">{formError}</div>}
 
@@ -366,6 +435,9 @@ const AdminHRAccounts = () => {
                   >
                     {showResetPass ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
+                </div>
+                <div style={{ marginTop: 8, fontSize: '0.72rem', color: '#64748b', lineHeight: 1.5 }}>
+                  Minimum 10 characters, at least one uppercase, one lowercase, one number, and one special character.
                 </div>
               </div>
 

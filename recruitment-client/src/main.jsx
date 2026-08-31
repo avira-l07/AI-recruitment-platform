@@ -9,11 +9,14 @@ import './styles/animations.css';
 import './styles/elevation.css';
 import './index.css';
 import { BrowserRouter } from 'react-router-dom';
+import { BlindScreeningProvider } from './context/BlindScreeningContext';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
-      <App />
+      <BlindScreeningProvider>
+        <App />
+      </BlindScreeningProvider>
     </BrowserRouter>
   </React.StrictMode>,
 );

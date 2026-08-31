@@ -48,40 +48,40 @@ def setup_data(client):
     db = SessionLocal()
     try:
         from app.core.security import get_password_hash
-        hr1_user = User(full_name="HR One", email="hr1@example.com", hashed_password=get_password_hash("SecurePass123!"), role="hr", is_active=True, must_change_password=False)
-        hr2_user = User(full_name="HR Two", email="hr2@example.com", hashed_password=get_password_hash("SecurePass123!"), role="hr", is_active=True, must_change_password=False)
+        hr1_user = User(full_name="HR One", email="ownership_hr1@example.com", hashed_password=get_password_hash("SecurePass123!"), role="hr", is_active=True, must_change_password=False)
+        hr2_user = User(full_name="HR Two", email="ownership_hr2@example.com", hashed_password=get_password_hash("SecurePass123!"), role="hr", is_active=True, must_change_password=False)
         db.add_all([hr1_user, hr2_user])
         db.commit()
         db.refresh(hr1_user)
         db.refresh(hr2_user)
 
         hr1_id = hr1_user.id
-        hr1_token_res = client.post("/auth/login", json={"email": "hr1@example.com", "password": "SecurePass123!"})
+        hr1_token_res = client.post("/auth/login", json={"email": "ownership_hr1@example.com", "password": "SecurePass123!"})
         assert hr1_token_res.status_code == 200, f"HR1 login failed: {hr1_token_res.text}"
         hr1_token = hr1_token_res.json()["access_token"]
 
         hr2_id = hr2_user.id
-        hr2_token_res = client.post("/auth/login", json={"email": "hr2@example.com", "password": "SecurePass123!"})
+        hr2_token_res = client.post("/auth/login", json={"email": "ownership_hr2@example.com", "password": "SecurePass123!"})
         assert hr2_token_res.status_code == 200, f"HR2 login failed: {hr2_token_res.text}"
         hr2_token = hr2_token_res.json()["access_token"]
 
         # Create Candidate 1
         c1_res = client.post("/auth/register", json={
-            "full_name": "Candidate One", "email": "cand1@example.com", "password": "SecurePass123!"
+            "full_name": "Candidate One", "email": "ownership_cand1@example.com", "password": "SecurePass123!"
         })
         assert c1_res.status_code == 200, f"Candidate 1 registration failed: {c1_res.status_code} - {c1_res.text}"
         c1_id = c1_res.json()["user_id"]
-        c1_token_res = client.post("/auth/login", json={"email": "cand1@example.com", "password": "SecurePass123!"})
+        c1_token_res = client.post("/auth/login", json={"email": "ownership_cand1@example.com", "password": "SecurePass123!"})
         assert c1_token_res.status_code == 200, f"Candidate 1 login failed: {c1_token_res.text}"
         c1_token = c1_token_res.json()["access_token"]
 
         # Create Candidate 2
         c2_res = client.post("/auth/register", json={
-            "full_name": "Candidate Two", "email": "cand2@example.com", "password": "SecurePass123!"
+            "full_name": "Candidate Two", "email": "ownership_cand2@example.com", "password": "SecurePass123!"
         })
         assert c2_res.status_code == 200, f"Candidate 2 registration failed: {c2_res.status_code} - {c2_res.text}"
         c2_id = c2_res.json()["user_id"]
-        c2_token_res = client.post("/auth/login", json={"email": "cand2@example.com", "password": "SecurePass123!"})
+        c2_token_res = client.post("/auth/login", json={"email": "ownership_cand2@example.com", "password": "SecurePass123!"})
         assert c2_token_res.status_code == 200, f"Candidate 2 login failed: {c2_token_res.text}"
         c2_token = c2_token_res.json()["access_token"]
 
@@ -192,7 +192,7 @@ def test_hr_scoping_rules_list_routes(client, setup_data):
     # HR1 should only see applications for Job 1, not Job 2
     assert len(hr1_apps) == 1
     assert hr1_apps[0]["job_id"] == setup_data["job1_id"]
-    assert hr1_apps[0]["email"] == "cand1@example.com"
+    assert hr1_apps[0]["email"] == "ownership_cand1@example.com"
 
     # HR2 checks their own application list
     res_hr2 = client.get("/applications/hr/me", headers=setup_data["hr2_headers"])
@@ -202,7 +202,7 @@ def test_hr_scoping_rules_list_routes(client, setup_data):
     assert len(hr2_apps) == 1
     assert hr2_apps[0]["application_id"] == app2_id
     assert hr2_apps[0]["job_id"] == setup_data["job2_id"]
-    assert hr2_apps[0]["email"] == "cand2@example.com"
+    assert hr2_apps[0]["email"] == "ownership_cand2@example.com"
 
 
 def test_hr_scoping_rules_detail_route(client, setup_data):
@@ -212,7 +212,7 @@ def test_hr_scoping_rules_detail_route(client, setup_data):
     
     res = client.get(f"/applications/{app1_id}", headers=setup_data["hr1_headers"])
     assert res.status_code == 200
-    assert res.json()["email"] == "cand1@example.com"
+    assert res.json()["email"] == "ownership_cand1@example.com"
 
     # HR2 attempts to retrieve Candidate 1's application detail -> 403 Forbidden
     res_hr2_steal = client.get(f"/applications/{app1_id}", headers=setup_data["hr2_headers"])

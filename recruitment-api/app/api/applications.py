@@ -1,7 +1,7 @@
 import json
 import os
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
@@ -20,6 +20,7 @@ from app.ai.job_matcher import calculate_hybrid_match
 from app.utils.file_handler import get_file_extension
 from app.utils.activity_logger import publish_event
 from app.services.notification_service import create_notification
+from app.services.blind_screening import is_blind_mode_requested, build_blind_candidate_representation
 
 router = APIRouter(prefix="/applications", tags=["applications"])
 
@@ -55,7 +56,10 @@ def _confidence_from_evidence(result: dict) -> tuple[float | None, str | None]:
     return score, label
 
 
-def submit_application(db: Session, job_id: int, current_user: User) -> dict:
+from app.models.prescreening import JobPrescreeningQuestion, ApplicationPrescreeningEvaluation
+from app.services.prescreening.response_evaluator import evaluate_prescreening_responses
+
+def submit_application(db: Session, job_id: int, current_user: User, prescreening_answers: list[dict] | None = None) -> dict:
     candidate = db.query(Candidate).filter(Candidate.user_id == current_user.id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate profile not found.")
@@ -126,6 +130,57 @@ def submit_application(db: Session, job_id: int, current_user: User) -> dict:
         fallback_reason=fallback_reason,
     )
     db.add(match)
+
+    # Process & Evaluate Pre-Screening Answers if provided
+    prescreening_score = None
+    prescreening_label = None
+    if prescreening_answers:
+        questions = db.query(JobPrescreeningQuestion).filter(
+            JobPrescreeningQuestion.job_id == job.id,
+            JobPrescreeningQuestion.is_active == True
+        ).order_by(JobPrescreeningQuestion.order_index.asc()).all()
+
+        q_dicts = [
+            {
+                "id": q.id,
+                "question_text": q.question_text,
+                "question_type": q.question_type,
+                "category": q.category,
+                "scoring_criteria": q.scoring_criteria,
+                "expected_concepts": json.loads(q.expected_concepts) if q.expected_concepts else [],
+                "weight": q.weight,
+                "is_required": q.is_required
+            }
+            for q in questions
+        ]
+
+        if not q_dicts:
+            # Fallback if no explicit DB questions but answers provided
+            q_dicts = [{"id": a.get("question_id") or idx + 1, "question_text": a.get("question_text", "Technical Assessment"), "question_type": "technical", "scoring_criteria": "Engineering evaluation", "expected_concepts": [], "weight": 1.0, "is_required": True} for idx, a in enumerate(prescreening_answers)]
+
+        eval_res = evaluate_prescreening_responses(
+            job_title=job.title,
+            questions=q_dicts,
+            candidate_answers=prescreening_answers,
+            candidate_identifier=candidate.full_name or f"Candidate #C-{candidate.id}"
+        )
+        prescreening_score = eval_res["overall_score"]
+        prescreening_label = eval_res["overall_label"]
+
+        eval_record = ApplicationPrescreeningEvaluation(
+            application_id=application.id,
+            candidate_id=candidate.id,
+            job_id=job.id,
+            overall_score=prescreening_score,
+            overall_label=prescreening_label,
+            evaluations_json=json.dumps(eval_res["evaluations"]),
+            summary=eval_res["summary"],
+            strengths_summary=eval_res["strengths_summary"],
+            gap_summary=eval_res["gap_summary"],
+            ai_source=eval_res["ai_source"]
+        )
+        db.add(eval_record)
+
     application.status = "Manual Review"
     db.commit()
     
@@ -156,7 +211,8 @@ def submit_application(db: Session, job_id: int, current_user: User) -> dict:
     publish_event(db, "matching_applied", candidate.id, current_user.id, {
         "application_id": application.id,
         "score": match.score,
-        "ai_source": ai_source
+        "ai_source": ai_source,
+        "prescreening_score": prescreening_score
     }, job_id=job.id)
     db.commit()
     db.refresh(application)
@@ -174,6 +230,9 @@ def submit_application(db: Session, job_id: int, current_user: User) -> dict:
         "fit_label": match.fit_label,
         "fallback_reason": match.fallback_reason,
         "ai_source": match.ai_source,
+        "prescreening_score": prescreening_score,
+        "prescreening_label": prescreening_label,
+        "has_prescreening": prescreening_score is not None
     }
 
 
@@ -183,17 +242,20 @@ def create_application(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_candidate)
 ):
-    return submit_application(db, payload.job_id, current_user)
+    return submit_application(db, payload.job_id, current_user, payload.prescreening_answers)
 
 
 @router.get("/hr/me")
 def get_my_hr_applications(
+    request: Request,
     status: str | None = None,
     minimum_score: float | None = Query(None, ge=0, le=100),
     search: str | None = None,
+    blind_mode: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_hr),
 ):
+    blind = is_blind_mode_requested(request, blind_mode, current_user)
     query = (
         db.query(Application, MatchScore, Candidate, Job, User)
         .join(Job, Application.job_id == Job.id)
@@ -209,13 +271,22 @@ def get_my_hr_applications(
         query = query.filter(MatchScore.score >= minimum_score)
     if search:
         search_clause = f"%{search}%"
-        query = query.filter(
-            or_(
-                User.full_name.like(search_clause),
-                User.email.like(search_clause),
-                Job.title.like(search_clause)
+        if blind:
+            # In blind mode, only search on technical attributes/job title/skills/candidate ID without matching on names/emails
+            query = query.filter(
+                or_(
+                    Candidate.skills.like(search_clause),
+                    Job.title.like(search_clause)
+                )
             )
-        )
+        else:
+            query = query.filter(
+                or_(
+                    User.full_name.like(search_clause),
+                    User.email.like(search_clause),
+                    Job.title.like(search_clause)
+                )
+            )
         
     rows = query.order_by(Application.applied_at.desc()).all()
     
@@ -225,12 +296,19 @@ def get_my_hr_applications(
         resume_available = bool(resume and resume.file_path)
         insight = _parse_insight(match.explanation if match else None)
         
-        results.append({
+        # Check pre-screening evaluation
+        p_eval = db.query(ApplicationPrescreeningEvaluation).filter(ApplicationPrescreeningEvaluation.application_id == app.id).first()
+
+        cand_name = (usr.full_name if usr else None) or cand.full_name or "Unknown Candidate"
+        cand_email = (usr.email if usr else None) or cand.email or "No email"
+        
+        item = {
             "id": app.id,
             "application_id": app.id,
             "candidate_id": cand.id,
-            "name": usr.full_name or cand.full_name or "Unknown Candidate",
-            "email": usr.email or cand.email or "No email",
+            "user_id": cand.user_id,
+            "name": cand_name,
+            "email": cand_email,
             "skills": safe_split(cand.skills),
             "phone": cand.phone,
             "education": cand.education,
@@ -252,14 +330,23 @@ def get_my_hr_applications(
             "aiSource": (match.ai_source if match else None) or insight.get("ai_source") or "local_ai",
             "created_at": app.applied_at.isoformat() if hasattr(app.applied_at, "isoformat") else str(app.applied_at),
             "updated_at": app.updated_at.isoformat() if hasattr(app.updated_at, "isoformat") else str(app.updated_at),
-            "resume_available": resume_available
-        })
+            "resume_available": resume_available,
+            "prescreening_score": p_eval.overall_score if p_eval else None,
+            "prescreening_label": p_eval.overall_label if p_eval else None,
+            "has_prescreening": bool(p_eval)
+        }
+        if blind:
+            results.append(build_blind_candidate_representation(item, candidate_id=cand.id, candidate_name=cand_name, email=cand_email, phone=cand.phone))
+        else:
+            results.append(item)
     return results
 
 
 @router.get("/{application_id}")
 def get_application_detail(
+    request: Request,
     application_id: int,
+    blind_mode: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -290,12 +377,16 @@ def get_application_detail(
     resume_available = bool(resume and resume.file_path)
     insight = _parse_insight(match.explanation if match else None)
     
-    return {
+    cand_name = (usr.full_name if usr else None) or cand.full_name or "Unknown Candidate"
+    cand_email = (usr.email if usr else None) or cand.email or "No email"
+    
+    item = {
         "id": app.id,
         "application_id": app.id,
         "candidate_id": cand.id,
-        "name": usr.full_name or cand.full_name or "Unknown Candidate",
-        "email": usr.email or cand.email or "No email",
+        "user_id": cand.user_id,
+        "name": cand_name,
+        "email": cand_email,
         "skills": safe_split(cand.skills),
         "phone": cand.phone,
         "education": cand.education,
@@ -319,14 +410,25 @@ def get_application_detail(
         "updated_at": app.updated_at.isoformat() if hasattr(app.updated_at, "isoformat") else str(app.updated_at),
         "resume_available": resume_available
     }
+    if current_user.role == "hr" and is_blind_mode_requested(request, blind_mode, current_user):
+        return build_blind_candidate_representation(item, candidate_id=cand.id, candidate_name=cand_name, email=cand_email, phone=cand.phone)
+    return item
 
 
 @router.get("/{application_id}/resume")
 def download_application_resume(
+    request: Request,
     application_id: int,
+    blind_mode: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_hr),
 ):
+    if is_blind_mode_requested(request, blind_mode, current_user):
+        raise HTTPException(
+            status_code=403,
+            detail="Raw resume download is restricted while Blind Screening Mode is active. Please reveal candidate identity to download original document."
+        )
+
     app = db.query(Application).filter(Application.id == application_id).first()
     if not app:
         raise HTTPException(status_code=404, detail="Application not found.")

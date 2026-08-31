@@ -66,8 +66,12 @@ const matchingService = {
     const response = await api.put(`/matching/${applicationId}/status`, { status, reason });
     return response.data;
   },
-  applyToJob: async (_userId, jobId) => {
-    const response = await api.post('/applications', { job_id: jobId });
+  applyToJob: async (_userId, jobId, prescreeningAnswers = null) => {
+    const payload = { job_id: jobId };
+    if (prescreeningAnswers && prescreeningAnswers.length > 0) {
+      payload.prescreening_answers = prescreeningAnswers;
+    }
+    const response = await api.post('/applications', payload);
     return response.data;
   },
 };

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import matchingService from '../../services/matchingService';
+import { useBlindScreening } from '../../context/BlindScreeningContext';
+import { ShieldCheck } from 'lucide-react';
 
 // Custom design components
 import ActionHeader from '../../components/ActionHeader';
@@ -26,12 +28,13 @@ const normalizeScore = (cand) => {
 };
 
 const normalizeName = (cand) => cand?.name || cand?.full_name || cand?.candidate_name || 'Unknown Candidate';
-const normalizeEmail = (cand) => cand?.email || cand?.candidate_email || 'No email';
+const normalizeEmail = (cand) => cand?.email || cand?.candidate_email || '';
 const normalizeJob = (cand) => cand?.matchedJob || cand?.jobTitle || cand?.job_title || 'Various';
 const normalizeStatus = (cand) => (cand?.status || 'Pending');
 
 const Candidates = () => {
   const navigate = useNavigate();
+  const { isBlindMode, toggleBlindMode, getBlindIdentifier } = useBlindScreening();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [candidates, setCandidates] = useState([]);
@@ -71,21 +74,41 @@ const Candidates = () => {
 
   useEffect(() => {
     loadData();
+
+    const handleBlindToggle = () => {
+      loadData();
+    };
+    window.addEventListener('blind-screening-toggled', handleBlindToggle);
+    return () => window.removeEventListener('blind-screening-toggled', handleBlindToggle);
   }, [loadData]);
 
   const filteredCandidates = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
     return (candidates || []).filter(c => {
       const name = normalizeName(c).toLowerCase();
       const email = normalizeEmail(c).toLowerCase();
       const status = normalizeStatus(c).toLowerCase();
       const score = normalizeScore(c);
+      const skills = normalizeSkills(c.skills || c.matchedSkills).join(' ').toLowerCase();
+      const job = normalizeJob(c).toLowerCase();
+      const blindId = getBlindIdentifier(c).toLowerCase();
 
-      if (searchTerm.trim() && !name.includes(searchTerm.toLowerCase()) && !email.includes(searchTerm.toLowerCase())) return false;
+      if (term) {
+        if (isBlindMode) {
+          // In blind mode, only search by skills, job title, or candidate ID
+          const matchesBlind = skills.includes(term) || job.includes(term) || blindId.includes(term) || String(c.id).includes(term);
+          if (!matchesBlind) return false;
+        } else {
+          const matchesNormal = name.includes(term) || email.includes(term) || skills.includes(term) || job.includes(term);
+          if (!matchesNormal) return false;
+        }
+      }
+
       if (statusFilter !== 'All' && status !== statusFilter.toLowerCase()) return false;
       if (score < minScore) return false;
       return true;
     }).sort((a, b) => normalizeScore(b) - normalizeScore(a));
-  }, [candidates, searchTerm, statusFilter, minScore]);
+  }, [candidates, searchTerm, statusFilter, minScore, isBlindMode, getBlindIdentifier]);
 
   const handleSelectAll = (e) => {
     setSelectedIds(e.target.checked ? new Set(filteredCandidates.map(c => c.id)) : new Set());
@@ -179,10 +202,31 @@ const Candidates = () => {
       <ReviewAlert title="AI transparency" message="Every application displays the recorded Local AI, Gemini, Hybrid, or fallback source." type="success" />
       {feedback && <ReviewAlert title="Update" message={feedback} type={feedback.includes('failed') ? 'warning' : 'success'} />}
 
+      {/* Fair Review Active Mode Banner */}
+      {isBlindMode && (
+        <div className="hr-fair-review-banner">
+          <div className="hr-fair-review-banner-left">
+            <span className="hr-fair-review-banner-badge">
+              <ShieldCheck size={13} /> Fair Review Mode Active
+            </span>
+            <p className="hr-fair-review-banner-desc">
+              <b>Candidate identifying information is concealed.</b> Evaluate candidates using skills, experience, projects, and job-fit analysis.
+            </p>
+          </div>
+          <button type="button" onClick={toggleBlindMode} className="hr-fair-review-banner-btn">
+            Exit Fair Review
+          </button>
+        </div>
+      )}
+
       {/* Filters */}
       <div style={{ display: 'flex', gap: 'var(--space-4)', marginBottom: 'var(--space-5)', flexWrap: 'wrap', alignItems: 'center', backgroundColor: 'var(--color-surface)', padding: 'var(--space-4)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
         <div style={{ flex: 1, minWidth: '240px' }}>
-          <SearchBar value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search candidate name or email..." />
+          <SearchBar 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)} 
+            placeholder={isBlindMode ? "Search skills, role, or candidate ID..." : "Search candidate name or email..."} 
+          />
         </div>
         <select 
           value={statusFilter} 
@@ -204,7 +248,9 @@ const Candidates = () => {
           onSelectAll={handleSelectAll}
         >
           {filteredCandidates.map((cand) => {
-            const name = normalizeName(cand);
+            const rawName = normalizeName(cand);
+            const displayName = isBlindMode ? (rawName.startsWith('Candidate #') ? rawName : getBlindIdentifier(cand)) : rawName;
+            const displayEmail = isBlindMode ? null : normalizeEmail(cand);
             const score = normalizeScore(cand);
             const isSelected = selectedIds.has(cand.id);
             return (
@@ -217,8 +263,16 @@ const Candidates = () => {
                 </td>
                 <td style={{ padding: 'var(--space-4) var(--space-5)' }}>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span style={{ fontWeight: 'var(--weight-medium)', color: 'var(--color-text)' }}>{name}</span>
-                    <span style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)' }}>{normalizeEmail(cand)}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {isBlindMode && <ShieldCheck size={14} style={{ color: '#00A83B', flexShrink: 0 }} />}
+                      <span style={{ fontWeight: 'var(--weight-medium)', color: 'var(--color-text)' }}>{displayName}</span>
+                    </div>
+                    {displayEmail && (
+                      <span style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)' }}>{displayEmail}</span>
+                    )}
+                    {isBlindMode && (
+                      <span style={{ fontSize: '10px', color: '#00A83B', fontWeight: 600 }}>Fair Review Active</span>
+                    )}
                   </div>
                 </td>
                 <td style={{ padding: 'var(--space-4) var(--space-5)' }}>
@@ -267,6 +321,7 @@ const Candidates = () => {
         detail={drawerDetail}
         loading={drawerLoading}
         error={drawerError}
+        isBlindMode={isBlindMode}
         onStatusUpdate={handleStatusUpdate}
         onRetry={() => selectedCandidate && openAiSummary(selectedCandidate)}
       />
@@ -277,6 +332,7 @@ const Candidates = () => {
         onClose={closeDrawer}
         applicationId={selectedCandidate?.application_id || selectedCandidate?.id}
         candidate={selectedCandidate}
+        isBlindMode={isBlindMode}
         onStatusUpdate={handleStatusUpdate}
       />
     </div>

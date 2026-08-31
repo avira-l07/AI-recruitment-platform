@@ -18,6 +18,8 @@ ApplicationStatus = Literal[
 
 class ApplyRequest(BaseModel):
     job_id: int = Field(..., gt=0)
+    prescreening_answers: Optional[list[dict]] = Field(default=None)
+
 
 
 class StatusUpdate(BaseModel):

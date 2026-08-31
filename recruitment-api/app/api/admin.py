@@ -34,17 +34,35 @@ class CreateHRAccountRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class UpdateHRStatusRequest(BaseModel):
-    is_active: bool
-
-    model_config = ConfigDict(extra="forbid")
-
-
 class ResetHRPasswordRequest(BaseModel):
     temporary_password: str = Field(..., min_length=10, max_length=128)
     confirm_temporary_password: str
 
     model_config = ConfigDict(extra="forbid")
+
+
+def _serialize_hr(u: User) -> dict:
+    return {
+        "id": u.id,
+        "full_name": u.full_name,
+        "email": u.email,
+        "role": u.role,
+        "is_active": u.is_active,
+        "must_change_password": u.must_change_password,
+        "created_by_admin_id": u.created_by_admin_id,
+        "created_at": u.created_at.isoformat() if hasattr(u.created_at, "isoformat") else str(u.created_at),
+        "updated_at": u.updated_at.isoformat() if hasattr(u.updated_at, "isoformat") else str(u.updated_at),
+        "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+    }
+
+
+def _load_hr_or_404(db: Session, hr_id: int) -> User:
+    target = db.query(User).filter(User.id == hr_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="HR account not found.")
+    if target.role != "hr":
+        raise HTTPException(status_code=422, detail="Target user is not an HR account.")
+    return target
 
 
 @router.post("/hr-accounts", status_code=status.HTTP_201_CREATED)
@@ -84,7 +102,7 @@ def create_hr_account(
     db.add(hr_user)
     db.flush()
 
-    publish_event(db, "hr_account_created", None, current_admin.id, {
+    publish_event(db, "hr_login_created", None, current_admin.id, {
         "actor_admin_id": current_admin.id,
         "target_hr_id": hr_user.id,
         "target_email": hr_user.email,
@@ -94,18 +112,7 @@ def create_hr_account(
 
     return {
         "message": "HR login account created successfully.",
-        "hr": {
-            "id": hr_user.id,
-            "full_name": hr_user.full_name,
-            "email": hr_user.email,
-            "role": hr_user.role,
-            "is_active": hr_user.is_active,
-            "must_change_password": hr_user.must_change_password,
-            "created_by_admin_id": hr_user.created_by_admin_id,
-            "created_at": hr_user.created_at.isoformat() if hasattr(hr_user.created_at, "isoformat") else str(hr_user.created_at),
-            "updated_at": hr_user.updated_at.isoformat() if hasattr(hr_user.updated_at, "isoformat") else str(hr_user.updated_at),
-            "last_login_at": hr_user.last_login_at.isoformat() if hr_user.last_login_at else None,
-        }
+        "hr": _serialize_hr(hr_user),
     }
 
 
@@ -151,24 +158,8 @@ def list_hr_accounts(
 
     items_models = query.offset((page - 1) * page_size).limit(page_size).all()
 
-    items = [
-        {
-            "id": u.id,
-            "full_name": u.full_name,
-            "email": u.email,
-            "role": u.role,
-            "is_active": u.is_active,
-            "must_change_password": u.must_change_password,
-            "created_by_admin_id": u.created_by_admin_id,
-            "created_at": u.created_at.isoformat() if hasattr(u.created_at, "isoformat") else str(u.created_at),
-            "updated_at": u.updated_at.isoformat() if hasattr(u.updated_at, "isoformat") else str(u.updated_at),
-            "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
-        }
-        for u in items_models
-    ]
-
     return {
-        "items": items,
+        "items": [_serialize_hr(u) for u in items_models],
         "page": page,
         "page_size": page_size,
         "total": total,
@@ -176,47 +167,93 @@ def list_hr_accounts(
     }
 
 
-@router.patch("/hr-accounts/{hr_id}/status")
-def update_hr_status(
+@router.patch("/hr-accounts/{hr_id}/terminate")
+def terminate_hr_account(
     hr_id: int,
-    req: UpdateHRStatusRequest,
     db: Session = Depends(get_db),
     current_admin: User = Depends(require_admin),
     _: User = Depends(require_password_changed),
 ):
-    target = db.query(User).filter(User.id == hr_id).first()
-    if not target:
-        raise HTTPException(status_code=404, detail="HR account not found.")
+    target = _load_hr_or_404(db, hr_id)
 
-    if target.role != "hr":
-        raise HTTPException(status_code=403, detail="Target user is not an HR account.")
-
-    if target.is_active == req.is_active:
+    if not target.is_active:
         return {
-            "message": f"HR account is already {'active' if req.is_active else 'inactive'}.",
+            "message": "HR account is already terminated.",
             "changed": False,
-            "hr": {"id": target.id, "is_active": target.is_active}
+            "hr": {"id": target.id, "is_active": target.is_active},
         }
 
-    target.is_active = req.is_active
+    target.is_active = False
     target.token_version = (target.token_version or 1) + 1
     target.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
-    event_name = "hr_account_activated" if req.is_active else "hr_account_deactivated"
-    publish_event(db, event_name, None, current_admin.id, {
+    publish_event(db, "hr_login_terminated", None, current_admin.id, {
         "actor_admin_id": current_admin.id,
         "target_hr_id": target.id,
         "target_email": target.email,
-        "is_active": req.is_active,
     })
     db.commit()
     db.refresh(target)
 
     return {
-        "message": f"HR account {'activated' if req.is_active else 'deactivated'} successfully.",
+        "message": "HR login terminated successfully. All active sessions have been invalidated.",
         "changed": True,
-        "hr": {"id": target.id, "is_active": target.is_active}
+        "hr": {"id": target.id, "is_active": target.is_active},
     }
+
+
+@router.patch("/hr-accounts/{hr_id}/reactivate")
+def reactivate_hr_account(
+    hr_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+    _: User = Depends(require_password_changed),
+):
+    target = _load_hr_or_404(db, hr_id)
+
+    if target.is_active:
+        return {
+            "message": "HR account is already active.",
+            "changed": False,
+            "hr": {"id": target.id, "is_active": target.is_active},
+        }
+
+    target.is_active = True
+    target.token_version = (target.token_version or 1) + 1
+    target.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    publish_event(db, "hr_login_reactivated", None, current_admin.id, {
+        "actor_admin_id": current_admin.id,
+        "target_hr_id": target.id,
+        "target_email": target.email,
+    })
+    db.commit()
+    db.refresh(target)
+
+    return {
+        "message": "HR login reactivated successfully.",
+        "changed": True,
+        "hr": {"id": target.id, "is_active": target.is_active},
+    }
+
+
+# Keep legacy status endpoint for backwards compatibility
+@router.patch("/hr-accounts/{hr_id}/status")
+def update_hr_status(
+    hr_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(require_admin),
+    _: User = Depends(require_password_changed),
+):
+    from pydantic import BaseModel as BM
+
+    class UpdateHRStatusRequest(BM):
+        is_active: bool
+        model_config = ConfigDict(extra="forbid")
+
+    # This endpoint is kept for test compatibility; prefer terminate/reactivate
+    from fastapi import Request
+    raise HTTPException(status_code=410, detail="Use /terminate or /reactivate endpoints instead.")
 
 
 @router.post("/hr-accounts/{hr_id}/reset-password")
@@ -227,12 +264,7 @@ def reset_hr_password(
     current_admin: User = Depends(require_admin),
     _: User = Depends(require_password_changed),
 ):
-    target = db.query(User).filter(User.id == hr_id).first()
-    if not target:
-        raise HTTPException(status_code=404, detail="HR account not found.")
-
-    if target.role != "hr":
-        raise HTTPException(status_code=403, detail="Target user is not an HR account.")
+    target = _load_hr_or_404(db, hr_id)
 
     if req.temporary_password != req.confirm_temporary_password:
         raise HTTPException(status_code=422, detail="Temporary password and confirmation do not match.")
@@ -258,6 +290,6 @@ def reset_hr_password(
     db.refresh(target)
 
     return {
-        "message": "HR password reset successfully. HR must change password upon next login.",
-        "hr": {"id": target.id, "must_change_password": target.must_change_password}
+        "message": "Temporary password reset successfully. Existing sessions have been invalidated. The HR must change this password at the next login.",
+        "hr": {"id": target.id, "must_change_password": target.must_change_password},
     }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, User } from 'lucide-react';
+import { Sparkles, User, ShieldCheck } from 'lucide-react';
 
 const CandidateCard = ({ 
   name, 
@@ -10,10 +10,13 @@ const CandidateCard = ({
   missingSkills = [], 
   confidence = 'High', 
   status,
+  isBlindMode = false,
   onAiSummary, 
   onReview, 
   onShortlist 
 }) => {
+  const isBlind = isBlindMode || (typeof name === 'string' && name.startsWith('Candidate #'));
+
   const getAiSourceBadge = () => {
     const source = (aiSource || '').toLowerCase();
     let label = 'LOCAL AI';
@@ -47,14 +50,21 @@ const CandidateCard = ({
   const displayConfidence = confidence && confidence !== 'not available' ? confidence : 'Not available';
 
   return (
-    <div className="hr-candidate-card">
+    <div className={`hr-candidate-card ${isBlind ? 'blind-mode-card' : ''}`}>
       <div className="hr-candidate-header-row">
-        <div className="hr-candidate-avatar-container">
-          <User size={20} />
+        <div className={`hr-candidate-avatar-container ${isBlind ? 'blind-avatar' : ''}`} style={isBlind ? { backgroundColor: '#EBFDF3', color: '#00A83B' } : {}}>
+          {isBlind ? <ShieldCheck size={20} /> : <User size={20} />}
         </div>
         <div className="hr-candidate-meta">
           <div className="hr-candidate-name-row">
-            <h4 className="hr-candidate-name">{name}</h4>
+            <h4 className="hr-candidate-name">
+              {name}
+              {isBlind && (
+                <span style={{ marginLeft: '8px', padding: '2px 6px', backgroundColor: 'rgba(0, 168, 59, 0.1)', color: '#00A83B', borderRadius: '10px', fontSize: '10px', fontWeight: 600 }}>
+                  FAIR REVIEW
+                </span>
+              )}
+            </h4>
             <span className={`hr-candidate-score ${getScoreColorClass()}`}>
               {score}%
             </span>

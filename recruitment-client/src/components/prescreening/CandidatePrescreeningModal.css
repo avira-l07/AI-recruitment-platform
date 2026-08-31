@@ -1,0 +1,269 @@
+/* ===================================================
+   CandidatePrescreeningModal.css — Candidate Questionnaire UI
+   =================================================== */
+
+.cand-ps-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.cand-ps-content {
+  background-color: #FFFFFF;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 720px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  border: 1px solid #CBD5E1;
+  animation: candFadeIn 0.2s ease-out;
+}
+
+@keyframes candFadeIn {
+  from { opacity: 0; transform: scale(0.98) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.cand-ps-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 22px;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.cand-ps-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cand-ps-icon-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #EFF6FF, #DBEAFE);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cand-ps-icon {
+  color: #2563EB;
+}
+
+.cand-ps-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+
+.cand-ps-sub {
+  font-size: 12px;
+  color: #64748B;
+}
+
+.cand-ps-close-btn {
+  background: none;
+  border: none;
+  color: #64748B;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.cand-ps-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.cand-ps-body {
+  padding: 18px 22px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.cand-ps-intro {
+  background-color: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.cand-ps-intro p {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.cand-ps-alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  background-color: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  color: #991B1B;
+  margin-bottom: 14px;
+}
+
+.cand-ps-q-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cand-ps-q-item {
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 14px;
+  background-color: #FFFFFF;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.cand-ps-q-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.cand-ps-q-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cand-ps-q-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.cand-ps-type-pill {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background-color: #EFF6FF;
+  color: #1E40AF;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.cand-ps-req-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #DC2626;
+}
+
+.cand-ps-q-prompt {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1E293B;
+  margin: 0 0 10px 0;
+  line-height: 1.4;
+}
+
+.cand-ps-textarea {
+  width: 100%;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  line-height: 1.4;
+}
+
+.cand-ps-textarea:focus {
+  outline: none;
+  border-color: #2563EB;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.cand-ps-q-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.cand-ps-word-count {
+  font-size: 11px;
+  color: #94A3B8;
+  font-family: var(--font-mono, monospace);
+}
+
+.cand-ps-good-length {
+  font-size: 11px;
+  color: #15803D;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.cand-ps-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 22px;
+  border-top: 1px solid #E2E8F0;
+  background-color: #F8FAFC;
+  border-radius: 0 0 12px 12px;
+}
+
+.cand-ps-btn-cancel {
+  padding: 8px 14px;
+  background-color: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  color: #334155;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.cand-ps-btn-submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  background: linear-gradient(135deg, #2563EB, #1D4ED8);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cand-ps-btn-submit:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1D4ED8, #1E40AF);
+}
+
+.cand-ps-spin {
+  animation: candSpin 1s linear infinite;
+}
+
+@keyframes candSpin {
+  100% { transform: rotate(360deg); }
+}

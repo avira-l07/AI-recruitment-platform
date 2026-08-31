@@ -10,6 +10,7 @@ const Login = () => {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [forgotMsg, setForgotMsg] = useState('');
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -81,12 +82,27 @@ const Login = () => {
           <button 
             type="submit" 
             className="btn-primary" 
-            style={{ width: '100%', marginBottom: '16px' }} 
+            style={{ width: '100%', marginBottom: '12px' }} 
             disabled={loading}
           >
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
+
+        <p style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+          <span
+            style={{ color: 'var(--sky)', cursor: 'pointer', fontWeight: '500' }}
+            onClick={() => setForgotMsg('Please contact your Administrator to reset your HR password.')}
+          >
+            Forgot Password?
+          </span>
+        </p>
+
+        {forgotMsg && (
+          <div style={{ padding: '12px', backgroundColor: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.25)', borderRadius: '6px', color: '#a5b4fc', fontSize: '0.85rem', textAlign: 'center', marginBottom: '12px', lineHeight: 1.5 }}>
+            {forgotMsg}
+          </div>
+        )}
         
         <p style={{ textAlign: 'center', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
           Don't have an account? <Link to="/register" style={{ color: 'var(--sky)', fontWeight: 'bold' }}>Register</Link>

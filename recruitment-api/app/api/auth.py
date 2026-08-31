@@ -198,3 +198,17 @@ def change_password(req: ChangePasswordRequest, current_user: User = Depends(get
 @router.get("/verify")
 def verify_token_status(current_user: User = Depends(get_current_user)):
     return {"status": "valid", "user_id": current_user.id, "role": current_user.role}
+
+
+@router.post("/forgot-password")
+def forgot_password(db: Session = Depends(get_db)):
+    """Forgot password endpoint.
+
+    When no email delivery service is configured, this endpoint always returns a
+    generic message that does not reveal whether the email exists. The Admin
+    password-reset feature should be used instead.
+    """
+    return {
+        "message": "If an account with that email exists, password reset instructions have been sent. If you do not receive an email, please contact your Administrator to reset your HR password.",
+        "email_configured": False,
+    }

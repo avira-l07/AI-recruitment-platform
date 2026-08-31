@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, FileText, Download, ZoomIn, ZoomOut, ExternalLink, ShieldAlert } from 'lucide-react';
+import { X, FileText, Download, ZoomIn, ZoomOut, ExternalLink, ShieldAlert, ShieldCheck, Lock } from 'lucide-react';
 import resumeService from '../services/resumeService';
+import VerificationTab from './verification/VerificationTab';
+import ApplicationPrescreeningCard from './prescreening/ApplicationPrescreeningCard';
 import './ResumeReviewDrawer.css';
 
 const getInitials = (name) => {
   if (!name) return '??';
+  if (name.startsWith('Candidate #')) return 'C#';
   return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 };
 
@@ -13,13 +16,16 @@ const ResumeReviewDrawer = ({
   onClose,
   applicationId,
   candidate,
+  isBlindMode = false,
   onStatusUpdate
 }) => {
   const closeButtonRef = useRef(null);
   const abortControllerRef = useRef(null);
 
-  // Tabs: 'original' or 'profile'
-  const [activeTab, setActiveTab] = useState('original');
+  const isBlind = isBlindMode || (typeof candidate?.name === 'string' && candidate.name.startsWith('Candidate #'));
+
+  // In blind mode default to 'profile', otherwise 'original'
+  const [activeTab, setActiveTab] = useState(isBlind ? 'profile' : 'original');
 
   // Loading & Error states
   const [fileUrl, setFileUrl] = useState(null);
@@ -55,41 +61,37 @@ const ResumeReviewDrawer = ({
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
 
-    // Load file and profile concurrently
-    const filePromise = resumeService.getApplicationResume(appId, { signal });
-    const profilePromise = resumeService.getResume(userId, { signal });
-
-    try {
-      const fileRes = await filePromise;
-      const url = URL.createObjectURL(fileRes.blob);
-      setFileUrl(url);
-      setFileLoading(false);
-    } catch (err) {
-      if (err.name === 'CanceledError' || err.name === 'AbortError' || err.message === 'canceled') {
-        // Silently ignore aborted requests
-        return;
+    // In blind mode, do not attempt to load raw resume file to avoid unnecessary 403
+    if (!isBlind) {
+      try {
+        const fileRes = await resumeService.getApplicationResume(appId, { signal });
+        const url = URL.createObjectURL(fileRes.blob);
+        setFileUrl(url);
+      } catch (err) {
+        if (err.name !== 'CanceledError' && err.name !== 'AbortError' && err.message !== 'canceled') {
+          setFileError('The original resume could not be found or loaded.');
+        }
+      } finally {
+        setFileLoading(false);
       }
-      setFileError('The original resume could not be found or loaded.');
+    } else {
       setFileLoading(false);
     }
 
     try {
-      const profileRes = await profilePromise;
+      const profileRes = await resumeService.getResume(userId, { signal });
       setProfile(profileRes);
-      setProfileLoading(false);
     } catch (err) {
-      if (err.name === 'CanceledError' || err.name === 'AbortError' || err.message === 'canceled') {
-        // Silently ignore aborted requests
-        return;
+      if (err.name !== 'CanceledError' && err.name !== 'AbortError' && err.message !== 'canceled') {
+        setProfileError('Extracted profile details are temporarily unavailable.');
       }
-      setProfileError('Extracted profile details are temporarily unavailable.');
+    } finally {
       setProfileLoading(false);
     }
   };
 
   useEffect(() => {
     if (!isOpen || !candidate || !applicationId) {
-      // Clear all state values and clean up Blob URL on close / candidate clear
       if (fileUrl) {
         URL.revokeObjectURL(fileUrl);
         setFileUrl(null);
@@ -101,23 +103,23 @@ const ResumeReviewDrawer = ({
       setProfile(null);
       setFileError('');
       setProfileError('');
-      setActiveTab('original');
+      setActiveTab(isBlind ? 'profile' : 'original');
       setZoom(100);
       return;
     }
 
-    const userId = candidate.user_id || candidate.userId;
+    setActiveTab(isBlind ? 'profile' : 'original');
+    const userId = candidate.user_id || candidate.userId || candidate.candidate_id || candidate.id;
     if (applicationId && userId) {
       loadResumeData(applicationId, userId);
     }
 
     return () => {
-      // Abort controller cleanup on unmount
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, [isOpen, candidate, applicationId]);
+  }, [isOpen, candidate, applicationId, isBlind]);
 
   // Clean up Object URL on unmount
   useEffect(() => {
@@ -214,14 +216,21 @@ const ResumeReviewDrawer = ({
         {/* Drawer Header */}
         <div className="review-header">
           <div className="review-header-info">
-            <div className="review-avatar">
-              {getInitials(candidateName)}
+            <div className="review-avatar" style={isBlind ? { backgroundColor: '#EBFDF3', color: '#00A83B' } : {}}>
+              {isBlind ? <ShieldCheck size={20} /> : getInitials(candidateName)}
             </div>
             <div className="review-title">
-              <h2 id="review-drawer-title">{candidateName}</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h2 id="review-drawer-title">{candidateName}</h2>
+                {isBlind && (
+                  <span style={{ fontSize: '11px', backgroundColor: '#EBFDF3', color: '#00A83B', border: '1px solid #A3E6BA', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                    Fair Review Mode
+                  </span>
+                )}
+              </div>
               <p>
-                <span>{email}</span>
-                <span>{phone}</span>
+                <span>{isBlind ? '[Email Concealed]' : email}</span>
+                <span>{isBlind ? '[Phone Concealed]' : phone}</span>
               </p>
             </div>
           </div>
@@ -246,7 +255,7 @@ const ResumeReviewDrawer = ({
             onClick={() => setActiveTab('original')}
             type="button"
           >
-            Original Resume
+            Original Resume {isBlind && '(Protected)'}
           </button>
           <button
             role="tab"
@@ -256,7 +265,19 @@ const ResumeReviewDrawer = ({
             onClick={() => setActiveTab('profile')}
             type="button"
           >
-            Extracted Profile
+            Extracted Profile {isBlind && '(Verified)'}
+          </button>
+          <button
+            role="tab"
+            aria-selected={activeTab === 'verification'}
+            aria-controls="panel-verification"
+            className={`review-tab-btn ${activeTab === 'verification' ? 'active' : ''}`}
+            onClick={() => setActiveTab('verification')}
+            type="button"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            <ShieldCheck size={14} style={{ color: activeTab === 'verification' ? '#2563EB' : '#10B981' }} />
+            Trust Verification
           </button>
         </div>
 
@@ -268,39 +289,61 @@ const ResumeReviewDrawer = ({
               role="tabpanel" 
               style={{ display: 'flex', flexDirection: 'column', gap: '16px', flex: 1 }}
             >
-              {/* File Info */}
-              <div className="review-metadata-card">
-                <div className="review-meta-item">
-                  <span className="review-meta-label">Filename</span>
-                  <span className="review-meta-value">{originalFileName}</span>
-                </div>
-                <div className="review-meta-item">
-                  <span className="review-meta-label">Uploaded At</span>
-                  <span className="review-meta-value">{uploadDate}</span>
-                </div>
-              </div>
-
-              {/* Document Pane */}
-              <div className="review-document-pane">
-                {fileLoading && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '24px', flex: 1, backgroundColor: '#FFFFFF' }}>
-                    <div className="ai-skeleton-bar" style={{ height: '40px', width: '100%' }} />
-                    <div className="ai-skeleton-bar" style={{ height: '320px', width: '100%', flex: 1 }} />
+              {isBlind ? (
+                <div className="review-preview-fallback" style={{ border: '1px solid rgba(0, 168, 59, 0.25)', backgroundColor: '#FBFDFB', padding: '32px 24px' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: '#EBFDF3', color: '#00A83B', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+                    <Lock size={24} />
                   </div>
-                )}
-
-                {fileError && !fileLoading && (
-                  <div className="review-preview-fallback">
-                    <ShieldAlert size={36} style={{ color: '#DC2626' }} />
-                    <div>
-                      <h4 className="review-fallback-title">Unable to Load Preview</h4>
-                      <p className="review-fallback-desc">{fileError}</p>
+                  <div>
+                    <h4 className="review-fallback-title" style={{ color: '#0F284E' }}>Original Document Protected in Fair Review Mode</h4>
+                    <p className="review-fallback-desc" style={{ maxWidth: '440px', margin: '8px auto', lineHeight: 1.5 }}>
+                      Raw resume files may contain unconscious demographic markers. All parsed skills, technical qualifications, verified experience, and project metrics are accessible in the <b>Extracted Profile</b> tab.
+                    </p>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => setActiveTab('profile')} 
+                    className="review-fallback-btn"
+                    style={{ backgroundColor: '#00A83B', color: '#FFFFFF', marginTop: '8px' }}
+                  >
+                    View Extracted Profile
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* File Info */}
+                  <div className="review-metadata-card">
+                    <div className="review-meta-item">
+                      <span className="review-meta-label">Filename</span>
+                      <span className="review-meta-value">{originalFileName}</span>
                     </div>
-                    <button type="button" onClick={handleRetry} className="review-fallback-btn">
-                      Retry Load
-                    </button>
+                    <div className="review-meta-item">
+                      <span className="review-meta-label">Uploaded At</span>
+                      <span className="review-meta-value">{uploadDate}</span>
+                    </div>
                   </div>
-                )}
+
+                  {/* Document Pane */}
+                  <div className="review-document-pane">
+                    {fileLoading && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '24px', flex: 1, backgroundColor: '#FFFFFF' }}>
+                        <div className="ai-skeleton-bar" style={{ height: '40px', width: '100%' }} />
+                        <div className="ai-skeleton-bar" style={{ height: '320px', width: '100%', flex: 1 }} />
+                      </div>
+                    )}
+
+                    {fileError && !fileLoading && (
+                      <div className="review-preview-fallback">
+                        <ShieldAlert size={36} style={{ color: '#DC2626' }} />
+                        <div>
+                          <h4 className="review-fallback-title">Unable to Load Preview</h4>
+                          <p className="review-fallback-desc">{fileError}</p>
+                        </div>
+                        <button type="button" onClick={handleRetry} className="review-fallback-btn">
+                          Retry Load
+                        </button>
+                      </div>
+                    )}
 
                 {!fileLoading && !fileError && fileUrl && (
                   <>
@@ -388,8 +431,10 @@ const ResumeReviewDrawer = ({
                   </>
                 )}
               </div>
-            </div>
+            </>
           )}
+        </div>
+      )}
 
           {activeTab === 'profile' && (
             <div 
@@ -415,10 +460,13 @@ const ResumeReviewDrawer = ({
                 </div>
               )}
 
-              {!profileLoading && !profileError && profile && (
+              {!profileLoading && !profileError && (
                 <>
+                  {/* Pre-Screening Assessment */}
+                  <ApplicationPrescreeningCard applicationId={applicationId} isBlindMode={isBlind} />
+
                   {/* Summary */}
-                  {profile.summary && (
+                  {profile?.summary && (
                     <div className="profile-section">
                       <h3>Summary</h3>
                       <p className="profile-detail-text">{profile.summary}</p>
@@ -472,6 +520,16 @@ const ResumeReviewDrawer = ({
                   )}
                 </>
               )}
+            </div>
+          )}
+
+          {activeTab === 'verification' && (
+            <div id="panel-verification" role="tabpanel" style={{ flex: 1 }}>
+              <VerificationTab
+                candidateId={candidate.candidate_id || candidate.candidateId || candidate.id}
+                candidate={candidate}
+                isBlindMode={isBlind}
+              />
             </div>
           )}
         </div>

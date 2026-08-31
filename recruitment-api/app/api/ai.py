@@ -1,9 +1,6 @@
 import json
-from datetime import datetime
-from math import ceil
 from uuid import uuid4
-
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -19,6 +16,7 @@ from app.models.job import Job
 from app.models.match_score import MatchScore
 from app.models.user import User
 from app.schemas.production_schema import RecruiterAssistantRequest
+from app.services.blind_screening import is_blind_mode_requested, get_neutral_candidate_identifier, redact_text_pii
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -83,7 +81,7 @@ def get_analysis_job(
     }
 
 
-def _ground_recruiter_answer(message: str, db: Session, hr_user: User):
+def _ground_recruiter_answer(message: str, db: Session, hr_user: User, blind: bool = False):
     lower = message.lower()
     actions = []
 
@@ -102,15 +100,16 @@ def _ground_recruiter_answer(message: str, db: Session, hr_user: User):
             return "There are no analyzed applications yet.", [], {"candidates": []}
         facts = []
         for application, match, candidate, job in rows:
+            display_name = get_neutral_candidate_identifier(candidate.id) if blind else candidate.full_name
             facts.append({
                 "candidate_id": candidate.id,
-                "name": candidate.full_name,
+                "name": display_name,
                 "job": job.title,
                 "score": match.score,
                 "status": application.status,
                 "ai_source": match.ai_source,
             })
-            actions.append({"type": "open_candidate", "candidate_id": candidate.id, "label": f"View {candidate.full_name}"})
+            actions.append({"type": "open_candidate", "candidate_id": candidate.id, "label": f"View {display_name}"})
         answer = "Top analyzed candidates: " + "; ".join(
             f"{f['name']} — {f['job']} ({round(f['score'])}%, {f['status']})" for f in facts
         )
@@ -135,15 +134,19 @@ def _ground_recruiter_answer(message: str, db: Session, hr_user: User):
     dependencies=[Depends(rate_limiter.dependency(20, 3600, "ai_recruiter"))],
 )
 def ask_recruiter(
+    request: Request,
     payload: RecruiterAssistantRequest,
+    blind_mode: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_hr),
 ):
-    grounded_answer, actions, facts = _ground_recruiter_answer(payload.message, db, current_user)
+    blind = is_blind_mode_requested(request, blind_mode, current_user)
+    grounded_answer, actions, facts = _ground_recruiter_answer(payload.message, db, current_user, blind=blind)
     source = "local_ai"
     prompt = f"""
 You are RecruitAI, an HR decision-support assistant. Use only the supplied database facts.
 Do not invent people, scores, counts, jobs, or hiring decisions. Keep the response under 120 words.
+{"In Blind Review Mode, always refer to candidates by their Neutral Identifier (e.g. Candidate #C-123) and never reveal personal names." if blind else ""}
 User question: {payload.message}
 Database facts: {json.dumps(facts, ensure_ascii=False)}
 Deterministic answer: {grounded_answer}
@@ -158,9 +161,13 @@ Return JSON only: {{"answer": "clear HR response"}}
     elif health.get("configured") and health.get("status") != "available":
         source = "local_fallback"
 
+    if blind:
+        answer = redact_text_pii(answer)
+
     return {
         "answer": answer,
         "source": source,
         "conversation_id": payload.conversation_id or uuid4().hex,
         "actions": actions,
+        "is_blind_mode": blind,
     }

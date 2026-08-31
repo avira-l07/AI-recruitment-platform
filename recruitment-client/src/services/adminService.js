@@ -10,8 +10,13 @@ export const getHRAccounts = async (params = {}) => {
   return response.data;
 };
 
-export const updateHRAccountStatus = async (hrId, isActive) => {
-  const response = await api.patch(`/admin/hr-accounts/${hrId}/status`, { is_active: isActive });
+export const terminateHRAccount = async (hrId) => {
+  const response = await api.patch(`/admin/hr-accounts/${hrId}/terminate`);
+  return response.data;
+};
+
+export const reactivateHRAccount = async (hrId) => {
+  const response = await api.patch(`/admin/hr-accounts/${hrId}/reactivate`);
   return response.data;
 };
 
@@ -23,7 +28,8 @@ export const resetHRPassword = async (hrId, payload) => {
 const adminService = {
   createHRAccount,
   getHRAccounts,
-  updateHRAccountStatus,
+  terminateHRAccount,
+  reactivateHRAccount,
   resetHRPassword,
 };
 

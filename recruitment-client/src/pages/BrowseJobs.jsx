@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import authService from '../services/authService';
 import jobService from '../services/jobService';
 import matchingService from '../services/matchingService';
+import prescreeningService from '../services/prescreeningService';
 import Sidebar from '../components/Sidebar';
 import LoadingSpinner from '../components/LoadingSpinner';
+import CandidatePrescreeningModal from '../components/prescreening/CandidatePrescreeningModal';
 
 const getFitLabel = (score) => {
   if (score >= 80) return 'Strong fit';
@@ -29,6 +31,9 @@ const BrowseJobs = () => {
   const [applyingId, setApplyingId] = useState(null);
   const [appliedIds, setAppliedIds] = useState(new Set());
   const [applyError, setApplyError] = useState(null);
+  const [activePrescreeningJob, setActivePrescreeningJob] = useState(null);
+  const [prescreeningQuestions, setPrescreeningQuestions] = useState([]);
+  const [isSubmittingPrescreening, setIsSubmittingPrescreening] = useState(false);
 
   const loadJobs = useCallback(async () => {
     setLoading(true);
@@ -72,6 +77,20 @@ const BrowseJobs = () => {
     setApplyingId(jobId);
     setApplyError(null);
     try {
+      // Check if job has pre-screening questions
+      try {
+        const questions = await prescreeningService.getJobQuestions(jobId);
+        if (Array.isArray(questions) && questions.length > 0) {
+          const targetJob = jobs.find(j => (j.job_id || j.id) === jobId) || { id: jobId, title: "Job Opening" };
+          setActivePrescreeningJob({ id: jobId, title: targetJob.title || "Job Opening" });
+          setPrescreeningQuestions(questions);
+          setApplyingId(null);
+          return;
+        }
+      } catch (qErr) {
+        // Fallback to normal apply if questions endpoint error
+      }
+
       await matchingService.applyToJob(userId, jobId);
       setAppliedIds(prev => new Set(prev).add(jobId));
     } catch (err) {
@@ -79,6 +98,22 @@ const BrowseJobs = () => {
       setApplyError(err.response?.data?.detail || 'Could not submit your application. Please try again.');
     } finally {
       setApplyingId(null);
+    }
+  };
+
+  const handlePrescreeningSubmit = async (answers) => {
+    if (!activePrescreeningJob || !userId) return;
+    setIsSubmittingPrescreening(true);
+    try {
+      await matchingService.applyToJob(userId, activePrescreeningJob.id, answers);
+      setAppliedIds(prev => new Set(prev).add(activePrescreeningJob.id));
+      setActivePrescreeningJob(null);
+      setPrescreeningQuestions([]);
+    } catch (err) {
+      console.error('Failed to apply with pre-screening', err);
+      setApplyError(err.response?.data?.detail || 'Could not submit your application. Please try again.');
+    } finally {
+      setIsSubmittingPrescreening(false);
     }
   };
 
@@ -195,6 +230,21 @@ const BrowseJobs = () => {
 
         </div>
       </main>
+
+      {/* Candidate Pre-Screening Modal */}
+      {activePrescreeningJob && (
+        <CandidatePrescreeningModal
+          isOpen={Boolean(activePrescreeningJob)}
+          onClose={() => {
+            setActivePrescreeningJob(null);
+            setPrescreeningQuestions([]);
+          }}
+          job={activePrescreeningJob}
+          questions={prescreeningQuestions}
+          onSubmit={handlePrescreeningSubmit}
+          isSubmitting={isSubmittingPrescreening}
+        />
+      )}
     </div>
   );
 };

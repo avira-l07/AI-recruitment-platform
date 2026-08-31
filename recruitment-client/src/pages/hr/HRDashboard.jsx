@@ -10,7 +10,9 @@ import {
   Send, 
   MessageSquare, 
   Inbox,
-  Sparkles
+  Sparkles,
+  ShieldCheck,
+  EyeOff
 } from 'lucide-react';
 
 import CandidateCard from '../../components/CandidateCard';
@@ -23,6 +25,7 @@ import aiService from '../../services/aiService';
 import analyticsService from '../../services/analyticsService';
 import authService from '../../services/authService';
 import matchingService from '../../services/matchingService';
+import { useBlindScreening } from '../../context/BlindScreeningContext';
 import './HRDashboard.css';
 
 const normalizeSkills = (skills) => {
@@ -34,6 +37,7 @@ const normalizeSkills = (skills) => {
 const HRDashboard = () => {
   const currentUser = authService.getCurrentUser() || {};
   const displayName = currentUser.name || currentUser.fullName || currentUser.email || 'HR Manager';
+  const { isBlindMode, toggleBlindMode } = useBlindScreening();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -208,9 +212,15 @@ const HRDashboard = () => {
       triggerDebouncedRefresh();
     };
 
+    const handleBlindToggle = () => {
+      loadData(false);
+    };
+
     window.addEventListener('hr-realtime-event', handleRealtimeBroadcast);
+    window.addEventListener('blind-screening-toggled', handleBlindToggle);
     return () => {
       window.removeEventListener('hr-realtime-event', handleRealtimeBroadcast);
+      window.removeEventListener('blind-screening-toggled', handleBlindToggle);
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
       }
@@ -322,6 +332,23 @@ const HRDashboard = () => {
         </button>
       </div>
 
+      {/* Fair Review Active Mode Banner */}
+      {isBlindMode && (
+        <div className="hr-fair-review-banner">
+          <div className="hr-fair-review-banner-left">
+            <span className="hr-fair-review-banner-badge">
+              <ShieldCheck size={13} /> Fair Review Mode Active
+            </span>
+            <p className="hr-fair-review-banner-desc">
+              <b>Candidate identifying information is concealed.</b> Review candidates using skills, experience, projects, and job-fit analysis.
+            </p>
+          </div>
+          <button type="button" onClick={toggleBlindMode} className="hr-fair-review-banner-btn">
+            Exit Fair Review
+          </button>
+        </div>
+      )}
+
       {/* Partial Data Warnings / Updates */}
       <div className="hr-dashboard-alerts">
         {warning && <ReviewAlert title="Partial data alert" message={warning} type="warning" />}
@@ -399,6 +426,7 @@ const HRDashboard = () => {
             missingSkills={normalizeSkills(activeCandidateForCarousel.missingSkills)}
             confidence={activeCandidateForCarousel.confidenceLabel}
             status={activeCandidateForCarousel.status}
+            isBlindMode={isBlindMode}
             onAiSummary={() => openAiSummary(activeCandidateForCarousel)}
             onReview={() => openResumeReview(activeCandidateForCarousel)}
             onShortlist={() => updateStatus(activeCandidateForCarousel.id, 'Shortlisted')}
@@ -538,6 +566,7 @@ const HRDashboard = () => {
         detail={drawerDetail}
         loading={drawerLoading}
         error={drawerError}
+        isBlindMode={isBlindMode}
         onStatusUpdate={updateStatus}
         onRetry={() => selectedCandidate && openAiSummary(selectedCandidate)}
       />
@@ -548,6 +577,7 @@ const HRDashboard = () => {
         onClose={closeDrawer}
         applicationId={selectedCandidate?.application_id || selectedCandidate?.id}
         candidate={selectedCandidate}
+        isBlindMode={isBlindMode}
         onStatusUpdate={updateStatus}
       />
     </div>

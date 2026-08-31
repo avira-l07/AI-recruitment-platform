@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Sparkles } from 'lucide-react';
 import authService from '../../services/authService';
 import jobService from '../../services/jobService';
 
@@ -8,6 +9,7 @@ import JobCard from '../../components/JobCard';
 import EmptyState from '../../components/EmptyState';
 import LoadingSkeleton from '../../components/LoadingSkeleton';
 import ErrorState from '../../components/ErrorState';
+import JobQuestionsModal from '../../components/prescreening/JobQuestionsModal';
 
 const JobManagement = () => {
   const user = authService.getCurrentUser() || {};
@@ -18,6 +20,7 @@ const JobManagement = () => {
   const [success, setSuccess] = useState('');
   const [closingJobId, setClosingJobId] = useState(null);
   const [closeReason, setCloseReason] = useState('');
+  const [selectedJobForQuestions, setSelectedJobForQuestions] = useState(null);
 
   const [formData, setFormData] = useState({
     title: '',
@@ -166,17 +169,48 @@ const JobManagement = () => {
                   {job.requiredSkills && job.requiredSkills.map(s => <span key={s} style={{ backgroundColor: 'var(--color-background)', fontSize: '10px', padding: '2px 8px', borderRadius: '4px' }}>{s}</span>)}
                 </div>
               </div>
-              <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 'var(--space-3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                 <span style={{ fontSize: 'var(--font-xs)', color: 'var(--color-muted)' }}>Experience: <b>{job.experienceLevel}</b></span>
-                {job.status === 'Closed' ? (
-                  <button onClick={() => handleReopen(job.id)} style={{ border: '1px solid var(--color-border)', color: 'var(--color-text)', borderRadius: 'var(--radius-md)', padding: '4px 10px', fontSize: 'var(--font-xs)', cursor: 'pointer', background: 'none' }}>Reopen</button>
-                ) : (
-                  <button onClick={() => setClosingJobId(job.id)} style={{ border: '1px solid var(--color-danger)', color: 'var(--color-danger)', borderRadius: 'var(--radius-md)', padding: '4px 10px', fontSize: 'var(--font-xs)', cursor: 'pointer', background: 'none' }}>Close</button>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button 
+                    onClick={() => setSelectedJobForQuestions(job)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      backgroundColor: '#EFF6FF',
+                      color: '#2563EB',
+                      border: '1px solid #BFDBFE',
+                      borderRadius: 'var(--radius-md)',
+                      padding: '4px 10px',
+                      fontSize: 'var(--font-xs)',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                    title="Configure AI Pre-Screening Questions"
+                  >
+                    <Sparkles size={12} />
+                    <span>AI Pre-Screening</span>
+                  </button>
+                  {job.status === 'Closed' ? (
+                    <button onClick={() => handleReopen(job.id)} style={{ border: '1px solid var(--color-border)', color: 'var(--color-text)', borderRadius: 'var(--radius-md)', padding: '4px 10px', fontSize: 'var(--font-xs)', cursor: 'pointer', background: 'none' }}>Reopen</button>
+                  ) : (
+                    <button onClick={() => setClosingJobId(job.id)} style={{ border: '1px solid var(--color-danger)', color: 'var(--color-danger)', borderRadius: 'var(--radius-md)', padding: '4px 10px', fontSize: 'var(--font-xs)', cursor: 'pointer', background: 'none' }}>Close</button>
+                  )}
+                </div>
               </div>
             </div>
           ))}
         </div>
+      )}
+
+      {/* AI Pre-Screening Questions Modal */}
+      {selectedJobForQuestions && (
+        <JobQuestionsModal
+          isOpen={Boolean(selectedJobForQuestions)}
+          onClose={() => setSelectedJobForQuestions(null)}
+          job={selectedJobForQuestions}
+        />
       )}
 
       {/* Close Modal */}

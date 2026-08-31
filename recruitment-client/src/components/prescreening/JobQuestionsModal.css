@@ -1,0 +1,459 @@
+/* ===================================================
+   JobQuestionsModal.css — Pre-screening Configuration UI
+   =================================================== */
+
+.ps-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.ps-modal-content {
+  background-color: #FFFFFF;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 780px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  border: 1px solid #CBD5E1;
+  animation: psFadeIn 0.2s ease-out;
+}
+
+@keyframes psFadeIn {
+  from { opacity: 0; transform: scale(0.98) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.ps-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 22px;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.ps-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ps-icon-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #EFF6FF, #DBEAFE);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ps-sparkle-icon {
+  color: #2563EB;
+}
+
+.ps-modal-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+
+.ps-modal-sub {
+  font-size: 12px;
+  color: #64748B;
+}
+
+.ps-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ps-preview-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  background-color: #F1F5F9;
+  border: 1px solid #CBD5E1;
+  color: #334155;
+  cursor: pointer;
+}
+
+.ps-preview-btn.active {
+  background-color: #2563EB;
+  color: #FFFFFF;
+  border-color: #1D4ED8;
+}
+
+.ps-close-btn {
+  background: none;
+  border: none;
+  color: #64748B;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.ps-modal-body {
+  padding: 18px 22px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.ps-alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-bottom: 14px;
+}
+
+.ps-alert-danger {
+  background-color: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  color: #991B1B;
+}
+
+.ps-alert-success {
+  background-color: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  color: #065F46;
+}
+
+.ps-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.ps-count-badge {
+  font-size: 11px;
+  font-weight: 700;
+  background-color: #EFF6FF;
+  color: #1D4ED8;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-right: 8px;
+}
+
+.ps-help-text {
+  font-size: 12px;
+  color: #64748B;
+}
+
+.ps-toolbar-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ps-btn-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+  color: #FFFFFF;
+  border: none;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ps-btn-ai:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2563EB, #1E40AF);
+}
+
+.ps-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #FFFFFF;
+  border: 1px solid #CBD5E1;
+  color: #334155;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ps-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #0F172A;
+  color: #FFFFFF;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ps-spin {
+  animation: psSpin 1s linear infinite;
+}
+
+@keyframes psSpin {
+  100% { transform: rotate(360deg); }
+}
+
+.ps-loading-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px;
+  color: #64748B;
+  gap: 8px;
+}
+
+.ps-empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  background-color: #F8FAFC;
+  border: 1px dashed #CBD5E1;
+  border-radius: 8px;
+}
+
+.ps-empty-icon {
+  color: #94A3B8;
+  margin-bottom: 8px;
+}
+
+.ps-empty-state h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0F172A;
+  margin: 0 0 6px 0;
+}
+
+.ps-empty-state p {
+  font-size: 12px;
+  color: #64748B;
+  max-width: 440px;
+  margin: 0 auto 16px auto;
+}
+
+/* Question Cards */
+.ps-questions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ps-q-card {
+  background-color: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 14px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.ps-q-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.ps-q-num-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #2563EB;
+  background-color: #EFF6FF;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.ps-q-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ps-select-type {
+  font-size: 11px;
+  padding: 4px 8px;
+  border: 1px solid #CBD5E1;
+  border-radius: 4px;
+  background-color: #F8FAFC;
+  color: #334155;
+  font-weight: 500;
+}
+
+.ps-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #475569;
+  cursor: pointer;
+}
+
+.ps-delete-btn {
+  background: none;
+  border: none;
+  color: #94A3B8;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.ps-delete-btn:hover {
+  color: #DC2626;
+  background-color: #FEF2F2;
+}
+
+.ps-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.ps-field-lbl {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.ps-textarea {
+  width: 100%;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.ps-input {
+  width: 100%;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.ps-criteria-row {
+  display: flex;
+  gap: 10px;
+}
+
+/* Candidate Experience Preview */
+.ps-preview-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background-color: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  color: #1E40AF;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-bottom: 14px;
+}
+
+.ps-preview-banner p {
+  margin: 2px 0 0 0;
+  font-size: 11px;
+  color: #3B82F6;
+}
+
+.ps-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ps-preview-item {
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 14px;
+  background-color: #F8FAFC;
+}
+
+.ps-preview-q-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.ps-q-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.ps-q-type-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background-color: #F1F5F9;
+  color: #475569;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.ps-required-badge {
+  font-size: 10px;
+  color: #DC2626;
+  font-weight: 600;
+}
+
+.ps-preview-q-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0F172A;
+  margin: 0 0 10px 0;
+}
+
+.ps-preview-input {
+  width: 100%;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  background-color: #FFFFFF;
+}
+
+.ps-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 22px;
+  border-top: 1px solid #E2E8F0;
+  background-color: #F8FAFC;
+  border-radius: 0 0 12px 12px;
+}

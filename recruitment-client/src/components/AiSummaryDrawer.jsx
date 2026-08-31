@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { X, Sparkles, ShieldAlert, Award, FileQuestion, GraduationCap, CheckCircle2, TrendingUp, UserCheck, AlertTriangle } from 'lucide-react';
+import { X, Sparkles, ShieldAlert, Award, FileQuestion, GraduationCap, CheckCircle2, TrendingUp, UserCheck, AlertTriangle, ShieldCheck } from 'lucide-react';
 import './AiSummaryDrawer.css';
 
 const normalizeSkills = (skills) => {
@@ -11,6 +11,7 @@ const normalizeSkills = (skills) => {
 
 const getInitials = (name) => {
   if (!name) return '??';
+  if (name.startsWith('Candidate #')) return 'C#';
   return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 };
 
@@ -32,6 +33,7 @@ const AiSummaryDrawer = ({
   detail = [],
   loading,
   error,
+  isBlindMode = false,
   onStatusUpdate,
   onRetry
 }) => {
@@ -74,7 +76,8 @@ const AiSummaryDrawer = ({
   const activeMatch = detail.length > 0 ? detail[0] : null;
 
   // Extract fields safely
-  const candidateName = candidate.name || candidate.fullName || 'Unknown Candidate';
+  const candidateName = candidate.name || candidate.fullName || candidate.candidate_name || 'Unknown Candidate';
+  const isBlind = isBlindMode || candidateName.startsWith('Candidate #');
   const jobTitle = activeMatch?.jobTitle || activeMatch?.job_title || candidate.jobTitle || 'Unknown Role';
   const matchScore = activeMatch?.matchScore ?? activeMatch?.score ?? 0;
   const fitScore = activeMatch?.fitScore ?? activeMatch?.fit_score ?? matchScore;
@@ -112,11 +115,18 @@ const AiSummaryDrawer = ({
         {/* Drawer Header */}
         <div className="ai-summary-header">
           <div className="ai-summary-header-info">
-            <div className="ai-summary-avatar">
-              {getInitials(candidateName)}
+            <div className="ai-summary-avatar" style={isBlind ? { backgroundColor: '#EBFDF3', color: '#00A83B' } : {}}>
+              {isBlind ? <ShieldCheck size={20} /> : getInitials(candidateName)}
             </div>
             <div className="ai-summary-title">
-              <h2 id="ai-drawer-title">{candidateName}</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h2 id="ai-drawer-title">{candidateName}</h2>
+                {isBlind && (
+                  <span style={{ fontSize: '11px', backgroundColor: '#EBFDF3', color: '#00A83B', border: '1px solid #A3E6BA', padding: '2px 8px', borderRadius: '12px', fontWeight: 600 }}>
+                    Fair Review Mode
+                  </span>
+                )}
+              </div>
               <span>AI Evaluation Insights</span>
             </div>
           </div>
@@ -236,14 +246,30 @@ const AiSummaryDrawer = ({
                 <div className="ai-section-block">
                   <h3>Semantic Skill Matches</h3>
                   <div className="ai-semantic-matches-list">
-                    {semanticMatches.map((sem, i) => (
-                      <div key={i} className="ai-semantic-match-item">
-                        <CheckCircle2 size={14} className="ai-semantic-match-icon" />
-                        <span className="ai-semantic-match-text">
-                          <b>{sem.skill || sem}</b> {sem.match && `matched via ${sem.match}`}
-                        </span>
-                      </div>
-                    ))}
+                    {semanticMatches.map((sem, i) => {
+                      let skillName = '';
+                      let matchText = '';
+
+                      if (typeof sem === 'string') {
+                        skillName = sem;
+                      } else if (sem && typeof sem === 'object') {
+                        skillName = sem.required_skill || sem.skill || '';
+                        if (Array.isArray(sem.evidence_skills) && sem.evidence_skills.length > 0) {
+                          matchText = sem.evidence_skills.join(', ');
+                        } else if (sem.match) {
+                          matchText = sem.match;
+                        }
+                      }
+
+                      return (
+                        <div key={i} className="ai-semantic-match-item">
+                          <CheckCircle2 size={14} className="ai-semantic-match-icon" />
+                          <span className="ai-semantic-match-text">
+                            <b>{skillName}</b> {matchText && `matched via ${matchText}`}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

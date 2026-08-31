@@ -4,7 +4,7 @@ import threading
 from datetime import datetime, timezone
 from uuid import uuid4
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status, Request, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -28,6 +28,7 @@ from app.utils.docx_extractor import extract_text_from_docx
 from app.core.dependencies import get_current_user, require_roles, verify_candidate_ownership
 from app.core.rate_limit import rate_limiter
 from app.services.notification_service import notify_all_hr, create_notification
+from app.services.blind_screening import is_blind_mode_requested, sanitize_parsed_resume, redact_text_pii
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "uploads")).resolve()
@@ -245,7 +246,13 @@ def upload_resume(
 
 
 @router.get("/{user_id}")
-def get_resume(user_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+def get_resume(
+    request: Request,
+    user_id: int,
+    blind_mode: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
     verify_candidate_ownership(user_id, current_user)
     candidate = _candidate_by_user(db, user_id)
     if not candidate:
@@ -257,19 +264,64 @@ def get_resume(user_id: int, db: Session = Depends(get_db), current_user = Depen
         parsed_json = json.loads(resume.parsed_data) if resume.parsed_data else {}
     except Exception:
         parsed_json = {}
+        
+    blind = current_user.role == "hr" and is_blind_mode_requested(request, blind_mode, current_user)
+    if blind:
+        parsed_json = sanitize_parsed_resume(parsed_json, candidate_id=candidate.id)
+        return {
+            "id": resume.id,
+            "candidate_id": resume.candidate_id,
+            "file_name": "resume_sanitized.pdf",
+            "uploaded_at": resume.uploaded_at,
+            "parsed_data": parsed_json,
+            "is_blind_mode": True
+        }
+        
     return {"id": resume.id, "candidate_id": resume.candidate_id, "file_name": resume.file_name, "uploaded_at": resume.uploaded_at, "parsed_data": parsed_json}
 
 
 @router.get("/{user_id}/intelligence")
-def resume_intelligence(user_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+def resume_intelligence(
+    request: Request,
+    user_id: int,
+    blind_mode: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
     verify_candidate_ownership(user_id, current_user)
-    resume_data = get_resume(user_id, db, current_user)["parsed_data"]
-    quality = resume_data.get("quality") or validate_resume_quality(resume_data, resume_data.get("raw_text_preview", ""))
-    return build_local_resume_intelligence(resume_data, quality)
+    candidate = _candidate_by_user(db, user_id)
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    resume = db.query(Resume).filter(Resume.candidate_id == candidate.id).first()
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found")
+    try:
+        parsed_json = json.loads(resume.parsed_data) if resume.parsed_data else {}
+    except Exception:
+        parsed_json = {}
+        
+    blind = current_user.role == "hr" and is_blind_mode_requested(request, blind_mode, current_user)
+    if blind:
+        parsed_json = sanitize_parsed_resume(parsed_json, candidate_id=candidate.id)
+        
+    quality = parsed_json.get("quality") or validate_resume_quality(parsed_json, parsed_json.get("raw_text_preview", ""))
+    intel = build_local_resume_intelligence(parsed_json, quality)
+    if blind:
+        intel = {
+            k: redact_text_pii(v, candidate_name=candidate.full_name, email=candidate.email, phone=candidate.phone, candidate_id=candidate.id) if isinstance(v, str) else v
+            for k, v in intel.items()
+        }
+    return intel
 
 
 @router.get("/{user_id}/career-suggestions")
-def career_suggestions(user_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+def career_suggestions(
+    request: Request,
+    user_id: int,
+    blind_mode: bool = Query(False),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
     verify_candidate_ownership(user_id, current_user)
     candidate = _candidate_by_user(db, user_id)
     if not candidate:

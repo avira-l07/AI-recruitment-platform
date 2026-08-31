@@ -2,7 +2,7 @@ import json
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -21,6 +21,7 @@ from app.schemas.production_schema import ApplyRequest, StatusUpdate
 from app.services.ai_tracking import complete_analysis_job, fail_analysis_job, start_analysis_job
 from app.services.notification_service import create_notification, notify_all_hr
 from app.utils.activity_logger import publish_event
+from app.services.blind_screening import is_blind_mode_requested, build_blind_candidate_representation
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/matching", tags=["matching"])
@@ -110,13 +111,16 @@ def _base_query(db: Session):
 
 @router.get("/all")
 def get_all_matches(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(100, ge=1, le=200),
     status: str | None = None,
     minimum_score: float | None = Query(None, ge=0, le=100),
+    blind_mode: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_hr),
 ):
+    blind = is_blind_mode_requested(request, blind_mode, current_user)
     query = _base_query(db).filter(Job.created_by == current_user.id)
     if status:
         query = query.filter(Application.status == status)
@@ -128,7 +132,19 @@ def get_all_matches(
         .limit(page_size)
         .all()
     )
-    return [_match_payload(*row) for row in rows]
+    results = []
+    for row in rows:
+        payload = _match_payload(*row)
+        cand = row[2]
+        usr = row[4]
+        cand_name = (usr.full_name if usr else None) or (cand.full_name if cand else None)
+        cand_email = (usr.email if usr else None) or (cand.email if cand else None)
+        cand_phone = cand.phone if cand else None
+        if blind:
+            results.append(build_blind_candidate_representation(payload, candidate_id=cand.id if cand else None, candidate_name=cand_name, email=cand_email, phone=cand_phone))
+        else:
+            results.append(payload)
+    return results
 
 
 @router.get("/me")
@@ -145,7 +161,9 @@ def get_my_matches(
 
 @router.get("/candidate/{user_id}")
 def get_candidate_matches(
+    request: Request,
     user_id: int,
+    blind_mode: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -160,12 +178,27 @@ def get_candidate_matches(
         query = query.filter(Job.created_by == current_user.id)
         
     rows = query.order_by(Application.applied_at.desc()).all()
-    return [_match_payload(*row) for row in rows]
+    blind = current_user.role == "hr" and is_blind_mode_requested(request, blind_mode, current_user)
+    results = []
+    for row in rows:
+        payload = _match_payload(*row)
+        cand = row[2]
+        usr = row[4]
+        cand_name = (usr.full_name if usr else None) or (cand.full_name if cand else None)
+        cand_email = (usr.email if usr else None) or (cand.email if cand else None)
+        cand_phone = cand.phone if cand else None
+        if blind:
+            results.append(build_blind_candidate_representation(payload, candidate_id=cand.id if cand else None, candidate_name=cand_name, email=cand_email, phone=cand_phone))
+        else:
+            results.append(payload)
+    return results
 
 
 @router.get("/job/{job_id}")
 def get_job_matches(
+    request: Request,
     job_id: int,
+    blind_mode: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_hr),
 ):
@@ -175,7 +208,20 @@ def get_job_matches(
     if job.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="You are not authorized to access this job's applications.")
     rows = _base_query(db).filter(Application.job_id == job_id).order_by(Application.applied_at.desc()).all()
-    return [_match_payload(*row) for row in rows]
+    blind = is_blind_mode_requested(request, blind_mode, current_user)
+    results = []
+    for row in rows:
+        payload = _match_payload(*row)
+        cand = row[2]
+        usr = row[4]
+        cand_name = (usr.full_name if usr else None) or (cand.full_name if cand else None)
+        cand_email = (usr.email if usr else None) or (cand.email if cand else None)
+        cand_phone = cand.phone if cand else None
+        if blind:
+            results.append(build_blind_candidate_representation(payload, candidate_id=cand.id if cand else None, candidate_name=cand_name, email=cand_email, phone=cand_phone))
+        else:
+            results.append(payload)
+    return results
 
 
 from app.api.applications import submit_application

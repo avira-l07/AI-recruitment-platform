@@ -609,3 +609,154 @@
     width: 280px;
   }
 }
+
+/* Fair Review / Blind Screening Toggle Styles */
+.hr-fair-review-toggle-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.hr-fair-review-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid #E8E0D5;
+  background-color: #FFFFFF;
+  color: #5A6A85;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.hr-fair-review-toggle-btn:hover {
+  background-color: #FBF9F6;
+  border-color: #D3C9BC;
+}
+
+.hr-fair-review-toggle-btn.active {
+  background-color: #EBFDF3;
+  border-color: #A3E6BA;
+  color: #007A2B;
+  box-shadow: 0 0 0 1px rgba(0, 168, 59, 0.2);
+}
+
+.hr-fair-review-toggle-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+}
+
+.hr-fair-review-toggle-text {
+  font-size: 12px;
+  letter-spacing: -0.01em;
+}
+
+.hr-fair-review-toggle-text strong {
+  font-weight: 700;
+}
+
+.hr-fair-review-switch-pill {
+  width: 28px;
+  height: 16px;
+  background-color: #CBD5E1;
+  border-radius: 10px;
+  position: relative;
+  transition: background-color 0.25s ease;
+  display: inline-block;
+  margin-left: 2px;
+}
+
+.hr-fair-review-switch-pill.on {
+  background-color: #00A83B;
+}
+
+.hr-fair-review-switch-thumb {
+  width: 12px;
+  height: 12px;
+  background-color: #FFFFFF;
+  border-radius: 50%;
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.25s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.hr-fair-review-switch-pill.on .hr-fair-review-switch-thumb {
+  transform: translateX(12px);
+}
+
+/* Fair Review Active Banner */
+.hr-fair-review-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: linear-gradient(135deg, #0A192F 0%, #0F284E 100%);
+  color: #FFFFFF;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 12px;
+  padding: 12px 18px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 14px rgba(10, 25, 47, 0.15);
+  animation: fadeIn 0.3s ease;
+}
+
+.hr-fair-review-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hr-fair-review-banner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 168, 59, 0.2);
+  color: #34D399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.hr-fair-review-banner-desc {
+  font-size: 12.5px;
+  color: #CBD5E1;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.hr-fair-review-banner-desc b {
+  color: #F8FAFC;
+}
+
+.hr-fair-review-banner-btn {
+  background: rgba(255, 255, 255, 0.1);
+  color: #F1F5F9;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.hr-fair-review-banner-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #FFFFFF;
+}
+
