@@ -26,10 +26,12 @@ def _provider_status_from_job(job: AIAnalysisJob | None, field: str, default: st
 
 
 @router.get("/status")
-def get_ai_status(db: Session = Depends(get_db), _: User = Depends(require_hr)):
-    latest = db.query(AIAnalysisJob).order_by(AIAnalysisJob.updated_at.desc()).first()
+def get_ai_status(db: Session = Depends(get_db), current_user: User = Depends(require_hr)):
+    scope = db.query(AIAnalysisJob).join(Job, AIAnalysisJob.job_id == Job.id).filter(Job.created_by == current_user.id)
+    latest = scope.order_by(AIAnalysisJob.updated_at.desc()).first()
     health = get_gemini_health()
-    average_duration = db.query(func.avg(AIAnalysisJob.duration_seconds)).filter(
+    average_duration = db.query(func.avg(AIAnalysisJob.duration_seconds)).join(Job, AIAnalysisJob.job_id == Job.id).filter(
+        Job.created_by == current_user.id,
         AIAnalysisJob.duration_seconds.isnot(None)
     ).scalar()
 
@@ -70,11 +72,13 @@ def get_ai_status(db: Session = Depends(get_db), _: User = Depends(require_hr)):
 def get_analysis_job(
     analysis_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_hr),
+    current_user: User = Depends(require_hr),
 ):
     job = db.query(AIAnalysisJob).filter(AIAnalysisJob.id == analysis_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="AI analysis job not found.")
+    from app.core.ownership import require_job_owner
+    require_job_owner(db.query(Job).filter(Job.id == job.job_id).first(), current_user)
     return {
         column.name: getattr(job, column.name)
         for column in AIAnalysisJob.__table__.columns

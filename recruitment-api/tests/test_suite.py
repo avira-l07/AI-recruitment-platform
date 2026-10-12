@@ -75,7 +75,7 @@ def override_get_db():
 client = TestClient(app)
 
 def get_auth_headers(user_id: int, role: str):
-    token = create_access_token({"user_id": user_id, "role": role})
+    token = create_access_token({"user_id": user_id, "role": role, "token_version": 1})
     return {"Authorization": f"Bearer {token}"}
 
 def ensure_resume_exists(db):
@@ -656,9 +656,9 @@ def test_stream_last_event_id_filter(monkeypatch):
     from app.models.activity_event import ActivityEvent
     db.query(ActivityEvent).delete()
     
-    ev1 = ActivityEvent(event_type="test_event_A", details_json="{}")
-    ev2 = ActivityEvent(event_type="test_event_B", details_json="{}")
-    ev3 = ActivityEvent(event_type="test_event_C", details_json="{}")
+    ev1 = ActivityEvent(event_type="test_event_A", user_id=3, details_json="{}")
+    ev2 = ActivityEvent(event_type="test_event_B", user_id=3, details_json="{}")
+    ev3 = ActivityEvent(event_type="test_event_C", user_id=3, details_json="{}")
     db.add_all([ev1, ev2, ev3])
     db.commit()
     
@@ -760,7 +760,7 @@ def test_invalid_token_download_returns_401():
 
 
 def test_expired_token_download_returns_401():
-    from jose import jwt
+    import jwt
     from app.core.security import SECRET_KEY, ALGORITHM
     expire = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(seconds=10)
     token = jwt.encode({"user_id": 1, "role": "candidate", "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)

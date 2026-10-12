@@ -2,30 +2,17 @@ import argparse
 import getpass
 import os
 import sys
+from pathlib import Path
+from dotenv import load_dotenv
 
 # Ensure app package is in Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+load_dotenv(Path(__file__).resolve().parents[1] / '.env')
 
 from app.core.database import SessionLocal
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, validate_password_strength
 from app.models.user import User
 from app.utils.activity_logger import publish_event
-
-
-def validate_password_strength(password: str) -> tuple[bool, str]:
-    if not password or len(password) < 10:
-        return False, "Password must be at least 10 characters long."
-    if len(password) > 128:
-        return False, "Password must not exceed 128 characters."
-    if not any(c.isupper() for c in password):
-        return False, "Password must contain at least one uppercase letter."
-    if not any(c.islower() for c in password):
-        return False, "Password must contain at least one lowercase letter."
-    if not any(c.isdigit() for c in password):
-        return False, "Password must contain at least one number."
-    if not any(not c.isalnum() for c in password):
-        return False, "Password must contain at least one special character."
-    return True, ""
 
 
 def main():

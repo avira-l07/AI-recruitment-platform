@@ -2,14 +2,8 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
-from unittest.mock import MagicMock
 from app.core.rate_limit import rate_limiter
-rate_limiter.dependency = MagicMock(return_value=lambda: None)
 
-os.environ["SECRET_KEY"] = "test-only-secret-key-with-sufficient-length-for-hmac"
-os.environ["DATABASE_URL"] = "sqlite:///./test.db"
-os.environ["SEED_DEFAULT_JOBS"] = "false"
-os.environ["ALLOW_PUBLIC_HR_REGISTRATION"] = "true"
 
 import app.models
 from app.core.database import SessionLocal, Base, engine
@@ -21,8 +15,6 @@ from app.models.resume import Resume
 from app.models.user import User
 
 # Recreate all tables cleanly
-Base.metadata.drop_all(bind=engine)
-Base.metadata.create_all(bind=engine)
 
 from app.core.database import get_db
 
@@ -97,12 +89,12 @@ def setup_data(client):
         cand2.experience = "Frontend developer for 3 years"
         
         # Seed resume files
-        os.makedirs("uploads", exist_ok=True)
-        r1_path = "uploads/resume_c1.pdf"
+        os.makedirs(os.environ["UPLOAD_DIR"], exist_ok=True)
+        r1_path = os.path.join(os.environ["UPLOAD_DIR"], "resume_c1.pdf")
         with open(r1_path, "wb") as f:
             f.write(b"%PDF-1.4 mock resume file content")
             
-        r2_path = "uploads/resume_c2.pdf"
+        r2_path = os.path.join(os.environ["UPLOAD_DIR"], "resume_c2.pdf")
         with open(r2_path, "wb") as f:
             f.write(b"%PDF-1.4 mock resume file content 2")
             

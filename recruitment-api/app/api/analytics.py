@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Query
+from app.services.activity_visibility import visible_events, serialize_event, stream_session_valid
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.core.database import get_db
@@ -143,23 +144,9 @@ from app.models.activity_event import ActivityEvent
 from app.core.database import SessionLocal
 
 @router.get("/events")
-def get_events(limit: int = 50, db: Session = Depends(get_db), current_user = Depends(require_roles(["hr"]))):
-    events = db.query(ActivityEvent).order_by(ActivityEvent.id.desc()).limit(limit).all()
-    result = []
-    for e in events:
-        try:
-            details = json.loads(e.details_json or "{}") if e.details_json else {}
-        except Exception:
-            details = {}
-        result.append({
-            "id": e.id,
-            "event_type": e.event_type,
-            "candidate_id": e.candidate_id,
-            "user_id": e.user_id,
-            "details": details,
-            "created_at": e.created_at.isoformat()
-        })
-    return result
+def get_events(request: Request, limit: int = Query(50, ge=1, le=100), db: Session = Depends(get_db), current_user = Depends(require_roles(["hr"]))):
+    events = visible_events(db, current_user).order_by(ActivityEvent.id.desc()).limit(limit).all()
+    return [serialize_event(db, e, current_user, request) for e in events]
 
 @router.get("/events/stream")
 def stream_events(request: Request, last_event_id: int = 0, current_user = Depends(require_roles(["hr"]))):
@@ -169,22 +156,12 @@ def stream_events(request: Request, last_event_id: int = 0, current_user = Depen
         while True:
             db = SessionLocal()
             try:
-                events = db.query(ActivityEvent).filter(ActivityEvent.id > last_seen_id).order_by(ActivityEvent.id.asc()).all()
+                if not stream_session_valid(db, current_user, request):
+                    break
+                events = visible_events(db, current_user).filter(ActivityEvent.id > last_seen_id).order_by(ActivityEvent.id.asc()).limit(100).all()
                 for e in events:
                     last_seen_id = e.id
-                    try:
-                        details = json.loads(e.details_json or "{}") if e.details_json else {}
-                    except Exception:
-                        details = {}
-                    payload = {
-                        "id": e.id,
-                        "event_type": e.event_type,
-                        "candidate_id": e.candidate_id,
-                        "user_id": e.user_id,
-                        "details": details,
-                        "created_at": e.created_at.isoformat()
-                    }
-                    yield f"data: {json.dumps(payload)}\n\n"
+                    yield f"data: {json.dumps(serialize_event(db, e, current_user, request))}\n\n"
             except Exception as ex:
                 print(f"SSE loop error: {ex}")
             finally:

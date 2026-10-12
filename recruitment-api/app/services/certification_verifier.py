@@ -29,23 +29,25 @@ def verify_certification(cert_claim: Dict[str, Any]) -> Dict[str, Any]:
 
     evidence_sources = []
     link_status = "No URL Provided"
-    tier = meta["tier"] if meta else "Tier 2 — Verified Independent"
-    confidence = 85.0 if cred_id else (75.0 if meta else 60.0)
+    tier = "Tier 3 — Candidate-Controlled"
+    confidence = 50.0 if cred_id else 40.0
+    safe_url = None
 
     if v_url:
         is_safe, clean_url = is_safe_url(v_url)
         if is_safe:
-            link_status = "Accessible Verification URL"
+            link_status = "Verification Link Supplied — Not Verified"
+            safe_url = clean_url
             evidence_sources.append({
                 "source_id": f"src_cert_{name[:6]}",
                 "title": f"{name} Credential Verification",
                 "url": clean_url,
                 "tier": tier,
                 "category": "Credential Registry",
-                "supports_claim": True,
+                "supports_claim": False,
                 "contradiction": False,
-                "reliability_score": 90 if meta and meta["trusted"] else 75,
-                "reason_used": "Online credential verification link."
+                "reliability_score": 40,
+                "reason_used": "Supplied link; issuer, credential validity, and ownership have not been checked."
             })
             confidence += 10.0
         else:
@@ -56,11 +58,11 @@ def verify_certification(cert_claim: Dict[str, Any]) -> Dict[str, Any]:
         "name": name,
         "provider": meta["name"] if meta else provider,
         "credential_id": cred_id or "Not Provided on Resume",
-        "verification_url": v_url,
+        "verification_url": safe_url,
         "link_status": link_status,
         "source_tier": tier,
         "evidence_sources": evidence_sources,
-        "status": "Verified" if (cred_id or v_url) else "Needs Review",
+        "status": "Needs Review",
         "confidence_score": min(98.0, confidence),
         "notes": f"Issued by {meta['name'] if meta else provider}."
     }

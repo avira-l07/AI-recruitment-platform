@@ -58,7 +58,7 @@ function AppRoutes({ currentUser, onLogout }) {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/change-password" element={<ChangePassword />} />
+        <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
 
         {/* Admin Portal */}
         <Route path="/admin" element={<Navigate to="/admin/hr-accounts" replace />} />
@@ -127,21 +127,26 @@ function App() {
   };
 
   useEffect(() => {
+    const syncUser = () => setCurrentUser(authService.getCurrentUser());
+    window.addEventListener('auth-changed', syncUser);
     const checkAuth = async () => {
       const token = localStorage.getItem('token');
       if (token) {
         try {
-          await api.get('/auth/verify');
-          setCurrentUser(authService.getCurrentUser());
+          await authService.fetchMe();
+          syncUser();
         } catch (err) {
-          authService.logout();
-          setCurrentUser(null);
+          if ([401, 403].includes(err.response?.status)) {
+            authService.logout();
+            setCurrentUser(null);
+          }
         }
       } else {
         setCurrentUser(null);
       }
     };
     checkAuth();
+    return () => window.removeEventListener('auth-changed', syncUser);
   }, []);
 
   return <AppRoutes currentUser={currentUser} onLogout={handleLogout} />;

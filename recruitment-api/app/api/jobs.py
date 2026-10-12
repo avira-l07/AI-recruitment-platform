@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from datetime import datetime
 from typing import List
 from app.core.database import get_db
+from app.core.ownership import require_candidate_access
 from app.core.time import utc_now
 from app.models.job import Job
 from app.models.candidate import Candidate
@@ -92,6 +93,7 @@ def get_my_recommended_jobs(
     candidate = db.query(Candidate).filter(Candidate.user_id == current_user.id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate profile not found.")
+    require_candidate_access(db, current_user, candidate)
     return _recommended_for_candidate(candidate, db)
 
 
@@ -102,6 +104,7 @@ def get_recommended_jobs(user_id: int, db: Session = Depends(get_db), current_us
     candidate = db.query(Candidate).filter(Candidate.user_id == user_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate profile not found.")
+    require_candidate_access(db, current_user, candidate)
     return _recommended_for_candidate(candidate, db)
 
 

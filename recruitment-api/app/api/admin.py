@@ -7,11 +7,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 
 from app.core.database import get_db
-from app.core.security import get_password_hash, verify_password
+from app.core.security import get_password_hash, verify_password, validate_password_strength
 from app.core.dependencies import get_current_user, require_admin, require_password_changed
 from app.models.user import User
 from app.utils.activity_logger import publish_event
-from app.api.auth import validate_password_strength
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 

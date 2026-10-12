@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime
 from datetime import datetime
 from app.core.database import Base
+from app.core.time import utc_now
 
 class Job(Base):
     __tablename__ = "jobs"
@@ -12,7 +13,7 @@ class Job(Base):
     experience_level = Column(String)
     education_requirement = Column(String)
     created_by = Column(Integer, ForeignKey("users.id"), index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
     status = Column(String, default="Active")          # "Active" or "Closed"
     closed_reason = Column(Text, nullable=True)
     closed_at = Column(DateTime, nullable=True)

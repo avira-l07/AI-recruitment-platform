@@ -2,15 +2,9 @@ import os
 import json
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock
 
 from app.core.rate_limit import rate_limiter
-rate_limiter.dependency = MagicMock(return_value=lambda: None)
 
-os.environ["SECRET_KEY"] = "test-only-secret-key-with-sufficient-length-for-hmac"
-os.environ["DATABASE_URL"] = "sqlite:///./test.db"
-os.environ["SEED_DEFAULT_JOBS"] = "false"
-os.environ["ALLOW_PUBLIC_HR_REGISTRATION"] = "true"
 
 import app.models
 from app.core.database import SessionLocal, Base, engine, get_db
@@ -31,8 +25,6 @@ from app.services.blind_screening import (
 )
 
 # Recreate all tables cleanly
-Base.metadata.drop_all(bind=engine)
-Base.metadata.create_all(bind=engine)
 
 
 def override_get_db():
@@ -156,7 +148,7 @@ def setup_blind_data(client):
         }
         
         # Make a dummy physical file in uploads directory for resume download test
-        upload_dir = os.path.join(os.path.dirname(__file__), "..", "uploads")
+        upload_dir = os.environ["UPLOAD_DIR"]
         os.makedirs(upload_dir, exist_ok=True)
         dummy_file_path = os.path.join(upload_dir, "test_resume.pdf")
         with open(dummy_file_path, "wb") as f:

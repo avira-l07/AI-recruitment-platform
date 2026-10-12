@@ -76,6 +76,24 @@ def submit_application(db: Session, job_id: int, current_user: User, prescreenin
     ).first()
     if existing_app:
         raise HTTPException(status_code=409, detail="You have already applied to this job.")
+
+    questions = db.query(JobPrescreeningQuestion).filter(
+        JobPrescreeningQuestion.job_id == job.id,
+        JobPrescreeningQuestion.is_active == True,
+    ).order_by(JobPrescreeningQuestion.order_index.asc()).all()
+    answers = [a.model_dump() if hasattr(a, "model_dump") else a for a in (prescreening_answers or [])]
+    valid_ids = {q.id for q in questions}
+    answered_ids = set()
+    for answer in answers:
+        qid = answer.get("question_id")
+        if qid not in valid_ids or qid in answered_ids:
+            raise HTTPException(status_code=422, detail="Answers must reference distinct active questions for this job.")
+        if not isinstance(answer.get("answer_text"), str) or not answer["answer_text"].strip():
+            raise HTTPException(status_code=422, detail="Pre-screening answers cannot be empty.")
+        answered_ids.add(qid)
+    if any(q.is_required and q.id not in answered_ids for q in questions):
+        raise HTTPException(status_code=422, detail="Answer all required pre-screening questions before applying.")
+    prescreening_answers = answers
         
     application = Application(candidate_id=candidate.id, job_id=job.id, status="AI Review")
     db.add(application)
@@ -154,9 +172,7 @@ def submit_application(db: Session, job_id: int, current_user: User, prescreenin
             for q in questions
         ]
 
-        if not q_dicts:
-            # Fallback if no explicit DB questions but answers provided
-            q_dicts = [{"id": a.get("question_id") or idx + 1, "question_text": a.get("question_text", "Technical Assessment"), "question_type": "technical", "scoring_criteria": "Engineering evaluation", "expected_concepts": [], "weight": 1.0, "is_required": True} for idx, a in enumerate(prescreening_answers)]
+        q_dicts = [q for q in q_dicts if q["id"] in answered_ids or q["is_required"]]
 
         eval_res = evaluate_prescreening_responses(
             job_title=job.title,

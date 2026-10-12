@@ -23,8 +23,7 @@ def upgrade() -> None:
     bind = op.get_bind()
     
     # Check if table exists
-    result = bind.execute(sa.text("SELECT name FROM sqlite_master WHERE type='table' AND name='applications'"))
-    if not result.fetchone():
+    if not sa.inspect(bind).has_table("applications"):
         return
 
     # Select all applications to deduplicate

@@ -10,7 +10,7 @@ load_dotenv()
 
 import app.models  # noqa: F401 - register metadata
 from app.core.database import Base, SessionLocal, engine
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, validate_password_strength
 from app.models.user import User
 
 
@@ -20,12 +20,15 @@ def main() -> None:
     parser.add_argument("--email", required=True, help="HR user's email address")
     args = parser.parse_args()
 
-    password = getpass("Password (minimum 12 characters): ")
+    password = getpass("Password (minimum 10 characters with uppercase, lowercase, number, and symbol): ")
     confirmation = getpass("Confirm password: ")
     if password != confirmation:
         raise SystemExit("Passwords do not match.")
-    if len(password) < 10:
-        print("Password must be at least 10 characters.")
+    valid, message = validate_password_strength(password)
+    if not valid:
+        raise SystemExit(message)
+    if not args.name.strip():
+        raise SystemExit("HR name is required.")
 
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:
@@ -38,6 +41,7 @@ def main() -> None:
                 email=email,
                 hashed_password=get_password_hash(password),
                 role="hr",
+                must_change_password=True,
             )
         )
         try:

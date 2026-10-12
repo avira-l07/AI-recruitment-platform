@@ -16,9 +16,16 @@ ApplicationStatus = Literal[
 ]
 
 
+class PrescreeningAnswer(BaseModel):
+    question_id: int = Field(gt=0)
+    question_text: Optional[str] = Field(default=None, max_length=4000)
+    answer_text: str = Field(max_length=10000)
+    model_config = ConfigDict(extra="forbid")
+
+
 class ApplyRequest(BaseModel):
     job_id: int = Field(..., gt=0)
-    prescreening_answers: Optional[list[dict]] = Field(default=None)
+    prescreening_answers: Optional[list[PrescreeningAnswer]] = Field(default=None, max_length=50)
 
 
 

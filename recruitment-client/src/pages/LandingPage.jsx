@@ -92,7 +92,7 @@ function MatchCard() {
         </div>
         <div className="ra-match-badge">
           <ScanLine size={13} />
-          scanning
+          demo
         </div>
       </div>
 
@@ -115,7 +115,7 @@ function MatchCard() {
 
       <div className="ra-match-footer">
         <div>
-          <div className="ra-match-label">match score</div>
+          <div className="ra-match-label">illustrative match score</div>
           <div className="ra-match-score">
             {score}
             <span>%</span>
@@ -129,9 +129,9 @@ function MatchCard() {
   );
 }
 
-function Feature({ icon, title, copy }) {
+function Feature({ icon, title, copy, id }) {
   return (
-    <div className="ra-feature">
+    <div className="ra-feature" id={id}>
       <div className="ra-feature-icon">{icon}</div>
       <h3>{title}</h3>
       <p>{copy}</p>
@@ -162,7 +162,7 @@ export default function LandingPage() {
         <div>
           <span className="ra-eyebrow">Recruitment Intelligence Platform</span>
           <h1 className="ra-display">
-            Match the right person <em>to the right role</em>, in hours not weeks.
+            Match the right person <em>to the right role</em>.
           </h1>
           <p className="ra-lede">
             RecruitAI reads every resume, scores every candidate against your open roles,
@@ -179,7 +179,7 @@ export default function LandingPage() {
           </div>
           <div className="ra-trust">
             <CheckCircle2 size={15} color="#2FAE79" />
-            Trusted by talent teams screening <b>150,000+</b> applications a year
+            Explainable matching with <b>human review</b> for hiring decisions
           </div>
         </div>
         <MatchCard />
@@ -188,20 +188,20 @@ export default function LandingPage() {
       {/* STATS */}
       <section className="ra-stats">
         <div className="ra-stat">
-          <div className="ra-stat-num"><span>48</span>hrs</div>
-          <div className="ra-stat-label">avg. time to first shortlist</div>
+          <div className="ra-stat-num"><span>PDF</span></div>
+          <div className="ra-stat-label">supported resume format</div>
         </div>
         <div className="ra-stat">
-          <div className="ra-stat-num"><span>3.2</span>x</div>
-          <div className="ra-stat-label">faster screening vs. manual review</div>
+          <div className="ra-stat-num"><span>DOCX</span></div>
+          <div className="ra-stat-label">supported resume format</div>
         </div>
         <div className="ra-stat">
-          <div className="ra-stat-num"><span>150</span>k+</div>
-          <div className="ra-stat-label">resumes parsed to date</div>
+          <div className="ra-stat-num"><span>0–100</span></div>
+          <div className="ra-stat-label">explained match scores</div>
         </div>
         <div className="ra-stat">
-          <div className="ra-stat-num"><span>92</span>%</div>
-          <div className="ra-stat-label">match accuracy, validated by hires</div>
+          <div className="ra-stat-num"><span>HR</span></div>
+          <div className="ra-stat-label">reviews every hiring decision</div>
         </div>
       </section>
 
@@ -231,7 +231,8 @@ export default function LandingPage() {
           <Feature
             icon={<BarChart3 size={19} />}
             title="Recruitment Analytics"
-            copy="See where candidates drop off, how long each stage takes, and what's actually working in your pipeline."
+            id="analytics"
+            copy="See application counts, pipeline stages, skill distribution, and match scores for your roles."
           />
         </div>
       </section>
@@ -244,17 +245,17 @@ export default function LandingPage() {
           <p>Candidates and hiring teams move through different steps — RecruitAI keeps both moving in parallel.</p>
         </div>
         <div className="ra-tracks-grid">
-          <div className="ra-track-candidate">
+          <div className="ra-track-candidate" id="candidates">
             <div className="ra-track-head">
               <h3>For Candidates</h3>
               <span className="ra-track-tag">candidate track</span>
             </div>
             <TrackStep icon={<Upload size={15} />} title="Upload your resume" copy="One upload — RecruitAI extracts your skills and experience for you." />
             <TrackStep icon={<Target size={15} />} title="Get matched" copy="See roles ranked by real fit, with a plain-language reason for each match." />
-            <TrackStep icon={<Users size={15} />} title="Meet the team" copy="Apply directly and schedule interviews without leaving the portal." />
+            <TrackStep icon={<Users size={15} />} title="Follow your application" copy="Apply directly and see when the hiring team moves your application to interview." />
             <TrackStep icon={<Trophy size={15} />} title="Get an offer" copy="Track every application's status in one place, right through to the offer." last />
           </div>
-          <div className="ra-track-employer">
+          <div className="ra-track-employer" id="employers">
             <div className="ra-track-head">
               <h3>For Employers</h3>
               <span className="ra-track-tag">employer track</span>
@@ -270,10 +271,10 @@ export default function LandingPage() {
       {/* CTA */}
       <section className="ra-cta">
         <h2 className="ra-display">Ready to hire smarter — or get discovered faster?</h2>
-        <p>Join as a candidate to get matched, or as an employer to start screening today.</p>
+        <p>Register as a candidate, or sign in with the HR account provided by your administrator.</p>
         <div className="ra-cta-actions">
           <Link to="/register?role=candidate" className="ra-btn ra-btn-lg ra-btn-solid-indigo">Register as Candidate</Link>
-          <Link to="/register?role=hr" className="ra-btn ra-btn-lg ra-btn-solid-amber">Register as Employer</Link>
+          <Link to="/login?role=hr" className="ra-btn ra-btn-lg ra-btn-solid-amber">Employer / HR Login</Link>
         </div>
       </section>
 
@@ -291,21 +292,19 @@ export default function LandingPage() {
           </div>
           <div className="ra-footer-col">
             <h5>Product</h5>
-            <a href="#">Resume Screening</a>
-            <a href="#">Job Matching</a>
-            <a href="#">HR Dashboard</a>
-            <a href="#">Analytics</a>
+            <a href="#product">Resume Screening</a>
+            <a href="#candidates">Job Matching</a>
+            <a href="#employers">HR Dashboard</a>
+            <a href="#analytics">Analytics</a>
           </div>
           <div className="ra-footer-col">
-            <h5>Company</h5>
-            <a href="#">About</a>
-            <a href="#">Careers</a>
-            <a href="#">Contact</a>
+            <h5>Candidates</h5>
+            <Link to="/register">Create Candidate Account</Link>
+            <Link to="/login?role=candidate">Candidate Login</Link>
           </div>
           <div className="ra-footer-col">
-            <h5>Legal</h5>
-            <a href="#">Privacy</a>
-            <a href="#">Terms</a>
+            <h5>Hiring Teams</h5>
+            <Link to="/login?role=hr">HR Login</Link>
           </div>
         </div>
         <div className="ra-footer-bottom">

@@ -67,7 +67,7 @@ const ProjectVerificationTable = ({ projects = [] }) => {
                   <span>Demo: <strong>{p.demo_status}</strong></span>
                 </div>
                 <div className="verif-signal-chip">
-                  <span>Activity: <strong>{p.commit_activity || 'Detected'}</strong></span>
+                  <span>Activity: <strong>{p.commit_activity || 'Not Checked'}</strong></span>
                 </div>
               </div>
 

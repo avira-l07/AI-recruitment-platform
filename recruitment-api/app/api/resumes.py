@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.ownership import require_candidate_access
 from app.models.resume import Resume
 from app.models.candidate import Candidate
 from app.models.job import Job
@@ -25,10 +26,10 @@ from app.ai.career_advisor import (
 from app.utils.file_handler import is_allowed_file, get_file_extension, MAX_UPLOAD_SIZE_BYTES
 from app.utils.pdf_extractor import extract_text_from_pdf
 from app.utils.docx_extractor import extract_text_from_docx
-from app.core.dependencies import get_current_user, require_roles, verify_candidate_ownership
+from app.core.dependencies import get_current_user, require_roles, require_password_changed, verify_candidate_ownership
 from app.core.rate_limit import rate_limiter
 from app.services.notification_service import notify_all_hr, create_notification
-from app.services.blind_screening import is_blind_mode_requested, sanitize_parsed_resume, redact_text_pii
+from app.services.blind_screening import is_blind_mode_requested, sanitize_parsed_resume, redact_text_pii, sanitize_list_or_text
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "uploads")).resolve()
@@ -46,6 +47,12 @@ def _extract_text(file_path: str) -> str:
 
 def _candidate_by_user(db: Session, user_id: int):
     return db.query(Candidate).filter(Candidate.user_id == user_id).first()
+
+
+def _blind_response(request, user, candidate, payload):
+    if user.role == "hr" and is_blind_mode_requested(request, None, user):
+        return sanitize_list_or_text(payload, candidate_name=candidate.full_name, candidate_id=candidate.id, email=candidate.email, phone=candidate.phone)
+    return payload
 
 
 def classify_gemini_error(error: Exception) -> tuple[str, str]:
@@ -76,7 +83,7 @@ def upload_resume(
     user_id: int = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_password_changed)
 ):
     if current_user.role == "candidate":
         user_id = current_user.id
@@ -86,6 +93,7 @@ def upload_resume(
     candidate = _candidate_by_user(db, user_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate profile not found for this user.")
+    require_candidate_access(db, current_user, candidate)
 
     if not file or not file.filename:
         raise HTTPException(status_code=422, detail="Please upload a PDF or DOCX resume file.")
@@ -93,7 +101,7 @@ def upload_resume(
         raise HTTPException(status_code=422, detail="Only PDF and DOCX resumes are allowed.")
 
     extension = get_file_extension(file.filename)
-    content = file.file.read()
+    content = file.file.read(MAX_UPLOAD_SIZE_BYTES + 1)
     if len(content) > MAX_UPLOAD_SIZE_BYTES:
         raise HTTPException(status_code=413, detail="Resume file is too large. Maximum allowed size is 5 MB.")
     if len(content) < 200:
@@ -122,8 +130,12 @@ def upload_resume(
     })
     db.commit()
 
-    text = _extract_text(file_location_str)
-    parsed_data = parse_resume(text)
+    try:
+        text = _extract_text(file_location_str)
+        parsed_data = parse_resume(text)
+    except Exception:
+        file_location.unlink(missing_ok=True)
+        raise HTTPException(status_code=422, detail="Resume could not be read. Upload a valid, unencrypted PDF or DOCX.")
 
     publish_event(db, "resume_parsed", candidate.id, user_id, {
         "file_name": file.filename
@@ -156,7 +168,7 @@ def upload_resume(
     local_career = rule_based_career_suggestions(parsed_data)
     new_hash = create_resume_hash(parsed_data)
 
-    existing_cached = db.query(Resume).filter(Resume.resume_hash == new_hash, Resume.status == "completed").first()
+    existing_cached = db.query(Resume).filter(Resume.candidate_id == candidate.id, Resume.resume_hash == new_hash, Resume.status == "completed").first()
     resume = db.query(Resume).filter(Resume.candidate_id == candidate.id).first()
 
     resume_fields = {
@@ -191,20 +203,17 @@ def upload_resume(
             "generation_completed_at": None,
         })
 
+    old_file_path = resume.file_path if resume else None
     if resume:
-        # Delete old file to save space and keep tidy
-        try:
-            if resume.file_path and os.path.exists(resume.file_path):
-                os.remove(resume.file_path)
-        except Exception:
-            pass
         for k, v in resume_fields.items():
             setattr(resume, k, v)
     else:
         resume = Resume(candidate_id=candidate.id, **resume_fields)
         db.add(resume)
 
-    candidate.full_name = parsed_data.get("name") if parsed_data.get("name") != "Not Found" else candidate.full_name
+    parsed_name = parsed_data.get("name")
+    if parsed_name and parsed_name != "Not Found":
+        candidate.full_name = parsed_name
     candidate.email = parsed_data.get("email") or candidate.email
     candidate.phone = parsed_data.get("phone") or candidate.phone
     candidate.skills = ",".join(parsed_data.get("skills", []))
@@ -213,8 +222,21 @@ def upload_resume(
     candidate.certifications = parsed_data.get("certifications", "Not specified")
     candidate.projects = parsed_data.get("projects", "Not specified")
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        file_location.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail="Resume could not be saved. Please try again.")
     db.refresh(resume)
+    if old_file_path:
+        try:
+            old_path = Path(old_file_path).resolve()
+            old_path.relative_to(upload_dir_path)
+            if old_path != file_location:
+                old_path.unlink(missing_ok=True)
+        except (ValueError, OSError):
+            pass
 
     publish_event(db, "local_analysis_completed", candidate.id, user_id, {
         "quality_score": quality.get("quality_score", 0),
@@ -251,12 +273,12 @@ def get_resume(
     user_id: int,
     blind_mode: bool = Query(False),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
+    current_user = Depends(require_password_changed),
 ):
-    verify_candidate_ownership(user_id, current_user)
     candidate = _candidate_by_user(db, user_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    require_candidate_access(db, current_user, candidate)
     resume = db.query(Resume).filter(Resume.candidate_id == candidate.id).first()
     if not resume:
         raise HTTPException(status_code=404, detail="Resume not found")
@@ -286,12 +308,12 @@ def resume_intelligence(
     user_id: int,
     blind_mode: bool = Query(False),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
+    current_user = Depends(require_password_changed),
 ):
-    verify_candidate_ownership(user_id, current_user)
     candidate = _candidate_by_user(db, user_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    require_candidate_access(db, current_user, candidate)
     resume = db.query(Resume).filter(Resume.candidate_id == candidate.id).first()
     if not resume:
         raise HTTPException(status_code=404, detail="Resume not found")
@@ -307,10 +329,7 @@ def resume_intelligence(
     quality = parsed_json.get("quality") or validate_resume_quality(parsed_json, parsed_json.get("raw_text_preview", ""))
     intel = build_local_resume_intelligence(parsed_json, quality)
     if blind:
-        intel = {
-            k: redact_text_pii(v, candidate_name=candidate.full_name, email=candidate.email, phone=candidate.phone, candidate_id=candidate.id) if isinstance(v, str) else v
-            for k, v in intel.items()
-        }
+        intel = sanitize_list_or_text(intel, candidate_name=candidate.full_name, candidate_id=candidate.id, email=candidate.email, phone=candidate.phone)
     return intel
 
 
@@ -320,12 +339,12 @@ def career_suggestions(
     user_id: int,
     blind_mode: bool = Query(False),
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
+    current_user = Depends(require_password_changed),
 ):
-    verify_candidate_ownership(user_id, current_user)
     candidate = _candidate_by_user(db, user_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    require_candidate_access(db, current_user, candidate)
     resume = db.query(Resume).filter(Resume.candidate_id == candidate.id).first()
     if not resume:
         raise HTTPException(status_code=404, detail="Resume not found")
@@ -333,7 +352,7 @@ def career_suggestions(
     if resume.status == "completed" and resume.combined_analysis_json:
         try:
             combined = json.loads(resume.combined_analysis_json)
-            return {
+            return _blind_response(request, current_user, candidate, {
                 "status": "completed",
                 "source": resume.analysis_source,
                 "cache_status": "hit",
@@ -341,7 +360,7 @@ def career_suggestions(
                 "aiInsights": combined.get("aiInsights", {}),
                 "error_type": None,
                 "safe_error_message": None
-            }
+            })
         except Exception:
             pass
 
@@ -366,7 +385,7 @@ def career_suggestions(
     quality = parsed.get("quality") or {}
     ai_insights = parsed.get("ai_insights") or build_local_resume_intelligence(parsed, quality)
 
-    return {
+    return _blind_response(request, current_user, candidate, {
         "status": resume.status or "local_ready",
         "source": "local",
         "cache_status": "miss",
@@ -374,20 +393,21 @@ def career_suggestions(
         "aiInsights": ai_insights,
         "error_type": resume.error_type,
         "safe_error_message": resume.safe_error_message
-    }
+    })
 
 
 @router.post("/{user_id}/career-suggestions/generate", dependencies=[Depends(rate_limiter.dependency(20, 3600, "gemini_generation"))])
 def generate_suggestions(
+    request: Request,
     user_id: int,
     force: bool = False,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
+    current_user = Depends(require_password_changed)
 ):
-    verify_candidate_ownership(user_id, current_user)
     candidate = _candidate_by_user(db, user_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    require_candidate_access(db, current_user, candidate)
     resume = db.query(Resume).filter(Resume.candidate_id == candidate.id).first()
     if not resume:
         raise HTTPException(status_code=404, detail="Resume not found. Upload a resume first.")
@@ -396,7 +416,7 @@ def generate_suggestions(
     if not force and resume.status == "completed" and resume.combined_analysis_json:
         try:
             combined = json.loads(resume.combined_analysis_json)
-            return {
+            return _blind_response(request, current_user, candidate, {
                 "status": "completed",
                 "source": resume.analysis_source,
                 "cache_status": "hit",
@@ -404,7 +424,7 @@ def generate_suggestions(
                 "aiInsights": combined.get("aiInsights", {}),
                 "error_type": None,
                 "safe_error_message": None
-            }
+            })
         except Exception:
             pass
 
@@ -473,7 +493,7 @@ def generate_suggestions(
         }, resume_id=resume.id)
         db.commit()
 
-        return {
+        return _blind_response(request, current_user, candidate, {
             "status": "completed",
             "source": "hybrid",
             "cache_status": "miss",
@@ -481,7 +501,7 @@ def generate_suggestions(
             "aiInsights": combined_res.get("aiInsights", {}),
             "error_type": None,
             "safe_error_message": None
-        }
+        })
 
     except Exception as e:
         db.refresh(resume)
@@ -526,7 +546,7 @@ def generate_suggestions(
         quality = parsed.get("quality") or {}
         ai_insights = parsed.get("ai_insights") or build_local_resume_intelligence(parsed, quality)
 
-        return {
+        return _blind_response(request, current_user, candidate, {
             "status": "failed",
             "source": "local",
             "cache_status": "miss",
@@ -534,7 +554,7 @@ def generate_suggestions(
             "aiInsights": ai_insights,
             "error_type": err_type,
             "safe_error_message": safe_msg
-        }
+        })
 
 
 @router.get("/me/download")
@@ -584,14 +604,14 @@ def download_my_resume(db: Session = Depends(get_db), current_user = Depends(req
 
 
 @router.get("/{user_id}/download")
-def download_resume_file(user_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+def download_resume_file(user_id: int, db: Session = Depends(get_db), current_user = Depends(require_password_changed)):
     if current_user.role != "candidate" or current_user.id != user_id:
         raise HTTPException(status_code=403, detail="Access denied. HR must use the application resume route.")
 
-    verify_candidate_ownership(user_id, current_user)
     candidate = _candidate_by_user(db, user_id)
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    require_candidate_access(db, current_user, candidate)
     resume = db.query(Resume).filter(Resume.candidate_id == candidate.id).first()
     if not resume:
         raise HTTPException(status_code=404, detail="Resume record not found")

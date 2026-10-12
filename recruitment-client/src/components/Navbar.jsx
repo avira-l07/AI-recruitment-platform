@@ -27,10 +27,10 @@ const Navbar = ({ user, onLogout }) => {
       
       {!isAdmin && (
         <div className="ra-nav-links">
-          <a href="#product">Product</a>
-          <a href="#candidates">For Candidates</a>
-          <a href="#employers">For Employers</a>
-          <a href="#analytics">Analytics</a>
+          <a href="/#product">Product</a>
+          <a href="/#candidates">For Candidates</a>
+          <a href="/#employers">For Employers</a>
+          <a href="/#analytics">Analytics</a>
         </div>
       )}
 

@@ -18,6 +18,7 @@ const authService = {
       is_active: data.is_active,
       must_change_password: data.must_change_password,
     }));
+    window.dispatchEvent(new Event('auth-changed'));
 
     return data;
   },
@@ -42,17 +43,20 @@ const authService = {
         must_change_password: data.user.must_change_password,
       }));
     }
+    window.dispatchEvent(new Event('auth-changed'));
     return data;
   },
   fetchMe: async () => {
     const response = await api.get('/auth/me');
     const data = response.data;
-    localStorage.setItem('user', JSON.stringify(data));
+    localStorage.setItem('user', JSON.stringify({ ...data, name: data.full_name || data.name }));
+    window.dispatchEvent(new Event('auth-changed'));
     return data;
   },
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    window.dispatchEvent(new Event('auth-changed'));
   },
   isTokenExpired: (token) => {
     if (!token) return true;

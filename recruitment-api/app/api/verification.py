@@ -6,13 +6,15 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.ownership import require_candidate_access
 from app.core.dependencies import require_hr
 from app.core.time import utc_now
 from app.models.candidate import Candidate
+from app.models.resume import Resume
 from app.models.user import User
 from app.models.verification import ExperienceVerification
 from app.services.verification_orchestrator import run_full_verification_pipeline
-from app.services.blind_screening import is_blind_mode_requested, get_neutral_candidate_identifier, redact_text_pii
+from app.services.blind_screening import is_blind_mode_requested, get_neutral_candidate_identifier, redact_text_pii, sanitize_list_or_text
 from app.utils.activity_logger import publish_event
 
 logger = logging.getLogger(__name__)
@@ -53,7 +55,7 @@ def _format_verification_response(v: ExperienceVerification, candidate: Candidat
             if node.get("type") == "candidate":
                 node["label"] = neutral_id
 
-    return {
+    response = {
         "id": v.id,
         "candidate_id": cand_id,
         "candidate_name": cand_name,
@@ -85,6 +87,12 @@ def _format_verification_response(v: ExperienceVerification, candidate: Candidat
         "created_at": v.created_at.isoformat() if v.created_at else None,
         "updated_at": v.updated_at.isoformat() if v.updated_at else None,
     }
+    if is_blind:
+        response = sanitize_list_or_text(response, candidate_name=candidate.full_name, candidate_id=cand_id, email=candidate.email, phone=candidate.phone)
+        if user and user.full_name != candidate.full_name:
+            response = sanitize_list_or_text(response, candidate_name=user.full_name, candidate_id=cand_id)
+        response["candidate_name"] = neutral_id
+    return response
 
 
 @router.get("/candidate/{candidate_id}")
@@ -102,19 +110,26 @@ def get_candidate_verification(
     candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    require_candidate_access(db, current_user, candidate)
 
     user = db.query(User).filter(User.id == candidate.user_id).first() if candidate.user_id else None
     is_blind = is_blind_mode_requested(request, blind_mode, current_user)
 
     v = db.query(ExperienceVerification).filter(ExperienceVerification.candidate_id == candidate_id).first()
-    if not v:
+    try:
+        cached_claims = json.loads(v.claims_json or "{}") if v else {}
+    except (ValueError, TypeError):
+        cached_claims = {}
+    resume = db.query(Resume).filter(Resume.candidate_id == candidate_id).order_by(Resume.id.desc()).first()
+    current_hash = resume.resume_hash if resume else None
+    if not v or cached_claims.get("_verification_engine_version") != 2 or cached_claims.get("_resume_hash") != current_hash:
         # Generate automatically on first review
         v = run_full_verification_pipeline(
             db=db,
             candidate_id=candidate_id,
             initiated_by_user_id=current_user.id,
             is_blind_mode=is_blind,
-            is_reverification=False
+            is_reverification=bool(v)
         )
 
     return _format_verification_response(v, candidate, user, is_blind)
@@ -134,6 +149,7 @@ def run_verification(
     candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
+    require_candidate_access(db, current_user, candidate)
 
     user = db.query(User).filter(User.id == candidate.user_id).first() if candidate.user_id else None
     is_blind = is_blind_mode_requested(request, blind_mode, current_user)
@@ -151,6 +167,7 @@ def run_verification(
 
 @router.post("/{verification_id}/decision")
 def record_hr_decision(
+    request: Request,
     verification_id: int,
     payload: DecisionRequest,
     db: Session = Depends(get_db),
@@ -162,14 +179,13 @@ def record_hr_decision(
     v = db.query(ExperienceVerification).filter(ExperienceVerification.id == verification_id).first()
     if not v:
         raise HTTPException(status_code=404, detail="Verification record not found")
+    candidate = db.query(Candidate).filter(Candidate.id == v.candidate_id).first()
+    require_candidate_access(db, current_user, candidate)
 
     v.hr_decision = payload.decision
     v.hr_decision_notes = payload.notes
     v.hr_decided_by = current_user.id
     v.hr_decided_at = utc_now()
-    db.commit()
-    db.refresh(v)
-
     # Publish audit event
     publish_event(
         db,
@@ -183,11 +199,13 @@ def record_hr_decision(
             "notes": payload.notes
         }
     )
+    db.commit()
+    db.refresh(v)
 
     candidate = db.query(Candidate).filter(Candidate.id == v.candidate_id).first()
     user = db.query(User).filter(User.id == candidate.user_id).first() if (candidate and candidate.user_id) else None
 
-    return _format_verification_response(v, candidate, user, is_blind=False)
+    return _format_verification_response(v, candidate, user, is_blind_mode_requested(request, None, current_user))
 
 
 @router.post("/{verification_id}/reverify")
@@ -204,6 +222,8 @@ def reverify_experience(
     v = db.query(ExperienceVerification).filter(ExperienceVerification.id == verification_id).first()
     if not v:
         raise HTTPException(status_code=404, detail="Verification record not found")
+    candidate = db.query(Candidate).filter(Candidate.id == v.candidate_id).first()
+    require_candidate_access(db, current_user, candidate)
 
     is_blind = is_blind_mode_requested(request, blind_mode, current_user)
     updated_v = run_full_verification_pipeline(

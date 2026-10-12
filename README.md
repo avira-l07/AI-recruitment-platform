@@ -41,6 +41,7 @@ cd recruitment-api
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+python -m alembic upgrade head
 python -m uvicorn app.main:app --reload
 ```
 
@@ -81,14 +82,51 @@ VITE_API_URL=http://localhost:8000
 Backend optional `.env`:
 
 ```env
-SECRET_KEY=change_this_secret
+APP_ENV=development
+SECRET_KEY=
 CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 GEMINI_API_KEY=
 ```
 
+Copy `recruitment-api/.env.example` to `.env`. Set a persistent random
+`SECRET_KEY` of at least 32 characters; a blank development key creates a new
+secret on each process start and invalidates previous sessions. Production
+(`APP_ENV=production`) requires a configured key and defaults to migrations
+instead of automatic schema creation. Public registration creates candidates;
+administrators create HR accounts. Bootstrap an administrator with
+`python scripts/create_admin.py` from `recruitment-api`.
+
+The frontend requires Node.js 20.19+ or 22.12+ (supported version ranges are in
+`recruitment-client/package.json`). Use `npm ci` for reproducible installs.
+
+## Audit and verification
+
+See [AUDIT_REPORT.md](AUDIT_REPORT.md) for the faults found, applied fixes,
+validation evidence, and remaining limitations from the October 12, 2026 audit.
+
+```powershell
+cd recruitment-api
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+```powershell
+cd recruitment-client
+npm ci
+npm test
+npm run build
+npm audit
+```
+
+Verification analyzes supplied resume claims and text. Repository URLs,
+credential IDs, and company references require human confirmation; supplied
+links alone do not prove employment, certificate validity, or repository
+activity. Hiring decisions remain with HR.
+
 ## Important Resume Rule
 
-Fake/incomplete resumes are rejected.
+Incomplete or unreadable resumes are rejected. Passing the quality check does
+not prove that a resume's claims are true.
 
 Example rejected resume:
 
@@ -104,7 +142,7 @@ Backend Render:
 
 ```text
 Root Directory: recruitment-api
-Build Command: pip install -r requirements.txt
+Build Command: pip install -r requirements.txt && python -m alembic upgrade head
 Start Command: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
 

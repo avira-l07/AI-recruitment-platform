@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import authService from '../services/authService';
 import analyticsService from '../services/analyticsService';
 import realtimeService from '../services/realtimeService';
+import { useBlindScreening } from '../context/BlindScreeningContext';
 
 export const useHRRealtime = (onNewEventTrigger) => {
   const [events, setEvents] = useState([]);
@@ -9,6 +10,7 @@ export const useHRRealtime = (onNewEventTrigger) => {
   const seenEventIdsRef = useRef(new Set());
   const lastSeenIdRef = useRef(0);
   const token = authService.getToken();
+  const { isBlindMode } = useBlindScreening();
 
   // Create a ref for onNewEventTrigger so the useEffect doesn't trigger repeatedly when callback reference changes
   const onNewEventTriggerRef = useRef(onNewEventTrigger);
@@ -18,6 +20,9 @@ export const useHRRealtime = (onNewEventTrigger) => {
 
   useEffect(() => {
     if (!token) return;
+    seenEventIdsRef.current.clear();
+    lastSeenIdRef.current = 0;
+    setEvents([]);
     let active = true;
     let stream = null;
 
@@ -78,7 +83,7 @@ export const useHRRealtime = (onNewEventTrigger) => {
         stream = null;
       }
     };
-  }, [token]);
+  }, [token, isBlindMode]);
 
   return { events, streamStatus };
 };

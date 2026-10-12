@@ -46,7 +46,7 @@ def get_current_user(
         )
 
     token_version = payload.get("token_version")
-    if token_version is not None and token_version != user.token_version:
+    if token_version != user.token_version:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Session has been revoked.",
@@ -167,11 +167,15 @@ def get_optional_user(
         raise HTTPException(status_code=401, detail="Invalid authentication token.")
 
     user = db.query(User).filter(User.id == user_id).first()
-    if not user or not user.is_active:
-        return None
+    if not user:
+        raise HTTPException(status_code=401, detail="User account no longer exists.")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account is inactive.")
 
     token_version = payload.get("token_version")
-    if token_version is not None and token_version != user.token_version:
-        return None
+    if token_version != user.token_version:
+        raise HTTPException(status_code=401, detail="Session has been revoked.")
+    if user.must_change_password:
+        raise HTTPException(status_code=403, detail="Password change required before accessing this resource.")
 
     return user

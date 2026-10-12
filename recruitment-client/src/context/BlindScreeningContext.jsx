@@ -18,6 +18,7 @@ export const BlindScreeningProvider = ({ children }) => {
 
   // Keep state synced when logged in user changes
   useEffect(() => {
+    const syncUser = () => {
     const user = authService.getCurrentUser();
     setCurrentUser(user);
     if (user?.role === 'hr') {
@@ -26,6 +27,14 @@ export const BlindScreeningProvider = ({ children }) => {
     } else {
       setIsBlindModeState(false);
     }
+    };
+    syncUser();
+    window.addEventListener('auth-changed', syncUser);
+    window.addEventListener('storage', syncUser);
+    return () => {
+      window.removeEventListener('auth-changed', syncUser);
+      window.removeEventListener('storage', syncUser);
+    };
   }, []);
 
   const sendAuditLog = async (enabled) => {
@@ -53,14 +62,8 @@ export const BlindScreeningProvider = ({ children }) => {
     const user = authService.getCurrentUser();
     if (!user || user.role !== 'hr') return;
 
-    setIsBlindModeState((prev) => {
-      const nextValue = !prev;
-      localStorage.setItem(`blind_screening_hr_${user.id}`, String(nextValue));
-      window.dispatchEvent(new CustomEvent('blind-screening-toggled', { detail: { isBlindMode: nextValue } }));
-      sendAuditLog(nextValue);
-      return nextValue;
-    });
-  }, []);
+    setBlindMode(!isBlindMode);
+  }, [setBlindMode, isBlindMode]);
 
   const getBlindIdentifier = useCallback((candidate) => {
     const id = candidate?.candidate_id || candidate?.candidateId || candidate?.id || 'Unknown';

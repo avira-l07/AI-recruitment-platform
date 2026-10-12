@@ -7,6 +7,11 @@ COMMON_BUZZWORDS = ["synergy", "paradigm", "rockstar", "ninja", "disruptive", "c
 
 def analyze_resume_authenticity(raw_text: Optional[str], candidate_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     text = raw_text or ""
+    if not text.strip():
+        return {"authenticity_score": 50.0, "status": "Insufficient Text", "fraud_flags": [],
+                "observations": ["No readable text is available for analysis."],
+                "hidden_text_detected": False, "keyword_stuffing_detected": False,
+                "notes": "Resume authenticity cannot be assessed without readable text."}
     observations = []
     fraud_flags = []
     authenticity_score = 95.0
@@ -50,10 +55,10 @@ def analyze_resume_authenticity(raw_text: Optional[str], candidate_data: Optiona
 
     return {
         "authenticity_score": max(20.0, authenticity_score),
-        "status": "Authentic / Clean" if not fraud_flags else "Flagged for Review",
+        "status": "No Text Anomalies Detected" if not fraud_flags else "Flagged for Review",
         "fraud_flags": fraud_flags,
         "observations": observations,
         "hidden_text_detected": hidden_char_count > 5,
         "keyword_stuffing_detected": bool(stuffing_suspects),
-        "notes": "Authenticity audit completed across layout, character integrity, and wording density."
+        "notes": "Text checks cover invisible characters and repetition; visual layout and claim authenticity have not been verified."
     }

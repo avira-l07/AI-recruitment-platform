@@ -8,6 +8,8 @@ from app.core.dependencies import get_current_user
 from app.models.user import User
 from app.models.candidate import Candidate
 from app.models.activity_event import ActivityEvent
+from app.core.dependencies import require_password_changed
+from app.services.activity_visibility import visible_events, serialize_event, stream_session_valid
 
 router = APIRouter(prefix="/activity", tags=["activity"])
 
@@ -16,7 +18,7 @@ router = APIRouter(prefix="/activity", tags=["activity"])
 def stream_activity(
     request: Request,
     last_event_id: int = 0,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_password_changed),
 ):
     async def event_generator():
         last_seen_id = last_event_id
@@ -28,37 +30,15 @@ def stream_activity(
         while True:
             db = SessionLocal()
             try:
+                if not stream_session_valid(db, current_user, request):
+                    break
                 # Query logic with user-role filtering
-                query = db.query(ActivityEvent).filter(ActivityEvent.id > last_seen_id)
+                query = visible_events(db, current_user).filter(ActivityEvent.id > last_seen_id)
                 
-                if current_user.role == "candidate":
-                    candidate = db.query(Candidate).filter(Candidate.user_id == current_user.id).first()
-                    candidate_id = candidate.id if candidate else -1
-                    query = query.filter(
-                        (ActivityEvent.candidate_id == candidate_id) |
-                        (ActivityEvent.user_id == current_user.id)
-                    )
-                elif current_user.role == "hr":
-                    from app.models.job import Job
-                    job_ids = [j.id for j in db.query(Job.id).filter(Job.created_by == current_user.id).all()]
-                    query = query.filter(ActivityEvent.job_id.in_(job_ids))
-                
-                events = query.order_by(ActivityEvent.id.asc()).all()
+                events = query.order_by(ActivityEvent.id.asc()).limit(100).all()
                 for e in events:
                     last_seen_id = e.id
-                    try:
-                        details = json.loads(e.details_json or "{}") if e.details_json else {}
-                    except Exception:
-                        details = {}
-                    payload = {
-                        "id": e.id,
-                        "event_type": e.event_type,
-                        "candidate_id": e.candidate_id,
-                        "user_id": e.user_id,
-                        "details": details,
-                        "created_at": e.created_at.isoformat()
-                    }
-                    yield f"data: {json.dumps(payload)}\n\n"
+                    yield f"data: {json.dumps(serialize_event(db, e, current_user, request))}\n\n"
                     loop_counter = 0 # reset on active data
             except Exception as ex:
                 pass

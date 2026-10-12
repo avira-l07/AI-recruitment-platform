@@ -14,10 +14,12 @@ from app.api import auth, candidates, resumes, jobs as jobs_api, matching, analy
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     os.makedirs("uploads", exist_ok=True)
-    Base.metadata.create_all(bind=engine)
+    auto_schema_default = "false" if os.getenv("APP_ENV", "development").lower() == "production" else "true"
+    if os.getenv("AUTO_CREATE_SCHEMA", auto_schema_default).lower() == "true":
+        Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        if hasattr(jobs_api, "seed_default_jobs"):
+        if os.getenv("SEED_DEFAULT_JOBS", "false").lower() == "true":
             jobs_api.seed_default_jobs(db)
     finally:
         db.close()
@@ -34,7 +36,6 @@ origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://localh
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=r"https://.*\.onrender\.com",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

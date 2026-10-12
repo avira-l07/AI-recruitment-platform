@@ -8,7 +8,7 @@ from sqlalchemy import func
 
 from app.core.database import get_db
 from app.core.rate_limit import rate_limiter
-from app.core.security import get_password_hash, verify_password, create_access_token
+from app.core.security import get_password_hash, verify_password, create_access_token, validate_password_strength
 from app.models.user import User
 from app.models.candidate import Candidate
 from app.schemas.auth_schema import RegisterRequest, LoginRequest, ChangePasswordRequest
@@ -17,22 +17,6 @@ from app.utils.activity_logger import publish_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-def validate_password_strength(password: str) -> tuple[bool, str]:
-    if not password or len(password) < 10:
-        return False, "Password must be at least 10 characters long."
-    if len(password) > 128:
-        return False, "Password must not exceed 128 characters."
-    if not any(c.isupper() for c in password):
-        return False, "Password must contain at least one uppercase letter."
-    if not any(c.islower() for c in password):
-        return False, "Password must contain at least one lowercase letter."
-    if not any(c.isdigit() for c in password):
-        return False, "Password must contain at least one number."
-    if not any(not c.isalnum() for c in password):
-        return False, "Password must contain at least one special character."
-    return True, ""
 
 
 @router.post("/register", dependencies=[Depends(rate_limiter.dependency(5, 3600, "register"))])

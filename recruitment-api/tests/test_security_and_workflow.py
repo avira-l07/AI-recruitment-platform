@@ -8,11 +8,6 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-os.environ["SECRET_KEY"] = "test-only-secret-key-with-sufficient-length"
-os.environ["DATABASE_URL"] = "sqlite:///./test.db"
-os.environ.pop("GEMINI_API_KEY", None)
-os.environ["SEED_DEFAULT_JOBS"] = "true"
-os.environ["ALLOW_PUBLIC_HR_REGISTRATION"] = "true"
 
 import app.models
 from app.core.database import SessionLocal, Base, engine
@@ -21,8 +16,6 @@ from app.models.candidate import Candidate
 from app.models.job import Job
 
 # Recreate all tables cleanly
-Base.metadata.drop_all(bind=engine)
-Base.metadata.create_all(bind=engine)
 
 from app.core.database import get_db
 
@@ -34,7 +27,7 @@ def override_get_db():
         db.close()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def client():
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
@@ -47,7 +40,7 @@ def client():
         pass
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def accounts(client):
     suffix = uuid4().hex[:10]
     candidate_email = f"candidate-{suffix}@example.com"
@@ -120,6 +113,8 @@ def test_candidate_application_and_hr_pipeline(client, accounts):
         candidate.education = "B.Tech Computer Science"
         candidate.experience = "One year of backend project experience"
         
+        from app.api.jobs import seed_default_jobs
+        seed_default_jobs(db)
         job = db.query(Job).filter(Job.status == "Active").first()
         assert job is not None
         job.created_by = accounts["hr_user_id"]

@@ -7,16 +7,23 @@ const realtimeService = {
     let active = true;
     let reader = null;
     let reconnectTimeout = null;
+    let resolveReconnect = null;
+    let controller = null;
     let delay = 1000;
-    const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const API_BASE_URL = import.meta.env?.VITE_API_URL || 'http://localhost:8000';
 
     const runStream = async () => {
       while (active) {
         try {
-          const url = `${API_BASE_URL}/analytics/events/stream?last_event_id=${lastEventId}`;
+          const url = `${API_BASE_URL.replace(/\/$/, '')}/analytics/events/stream?last_event_id=${lastEventId}`;
+          controller = new AbortController();
+          const user = JSON.parse(localStorage.getItem('user') || 'null');
+          const blind = user?.role === 'hr' && localStorage.getItem(`blind_screening_hr_${user.id}`) === 'true';
           const response = await fetch(url, {
+            signal: controller.signal,
             headers: {
-              'Authorization': `Bearer ${token}`
+              'Authorization': `Bearer ${token}`,
+              ...(blind ? { 'X-Blind-Screening': 'true' } : {}),
             }
           });
 
@@ -51,6 +58,7 @@ const realtimeService = {
                 const jsonStr = line.slice(6).trim();
                 try {
                   const event = JSON.parse(jsonStr);
+                  if (event.id) lastEventId = Math.max(lastEventId, event.id);
                   if (onEvent) onEvent(event);
                 } catch (e) {
                   console.error("Realtime stream: JSON parse exception", e);
@@ -58,6 +66,7 @@ const realtimeService = {
               }
             }
           }
+          if (active) throw new Error('Event stream closed');
         } catch (err) {
           if (!active) break;
           console.warn("Realtime stream error, scheduling reconnect...", err);
@@ -66,7 +75,7 @@ const realtimeService = {
 
           if (reader) {
             try {
-              reader.cancel();
+              void reader.cancel().catch(() => {});
             } catch (e) {
               // ignore cancel error
             }
@@ -75,8 +84,11 @@ const realtimeService = {
 
           // Await exponential reconnect timeout
           await new Promise((resolve) => {
+            resolveReconnect = resolve;
             reconnectTimeout = setTimeout(resolve, delay);
           });
+          reconnectTimeout = null;
+          resolveReconnect = null;
           delay = Math.min(delay * 2, 30000);
         }
       }
@@ -87,9 +99,10 @@ const realtimeService = {
     return {
       abort: () => {
         active = false;
+        controller?.abort();
         if (reader) {
           try {
-            reader.cancel();
+            void reader.cancel().catch(() => {});
           } catch (e) {
             // ignore cancel error
           }
@@ -99,6 +112,7 @@ const realtimeService = {
           clearTimeout(reconnectTimeout);
           reconnectTimeout = null;
         }
+        resolveReconnect?.();
       }
     };
   }

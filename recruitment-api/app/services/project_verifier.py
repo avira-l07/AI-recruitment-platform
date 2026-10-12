@@ -29,7 +29,7 @@ def verify_project_claim(project_claim: Dict[str, Any]) -> Dict[str, Any]:
             repo_status = "Prohibited / Unsafe URL"
             fraud_signals.append(f"Repository URL failed SSRF safety validation: {repo_url}")
         else:
-            repo_status = "Verified Repository"
+            repo_status = "Repository Link Supplied — Not Verified"
             source_tier = "Tier 3 — Candidate-Controlled"
             evidence_sources.append({
                 "source_id": f"src_repo_{name[:6]}",
@@ -37,28 +37,31 @@ def verify_project_claim(project_claim: Dict[str, Any]) -> Dict[str, Any]:
                 "url": clean_repo,
                 "tier": "Tier 3 — Candidate-Controlled",
                 "category": "Source Code Repository",
-                "supports_claim": True,
+                "supports_claim": False,
                 "contradiction": False,
-                "reliability_score": 85,
-                "reason_used": "Public code repository accessible with matching project naming."
+                "reliability_score": 40,
+                "reason_used": "Supplied URL; repository contents and ownership have not been checked."
             })
     
     # 2. Inspect Live Demo URL
     if demo_url:
         is_safe, clean_demo = is_safe_url(demo_url)
         if is_safe:
-            demo_status = "Live Demo Accessible"
+            demo_status = "Demo Link Supplied — Not Verified"
             evidence_sources.append({
                 "source_id": f"src_demo_{name[:6]}",
                 "title": f"{name} Live Deployment / Demo",
                 "url": clean_demo,
                 "tier": "Tier 3 — Candidate-Controlled",
                 "category": "Cloud Deployment",
-                "supports_claim": True,
+                "supports_claim": False,
                 "contradiction": False,
-                "reliability_score": 80,
-                "reason_used": "Accessible cloud deployment or interactive demo."
+                "reliability_score": 40,
+                "reason_used": "Supplied URL; demo accessibility has not been checked."
             })
+        else:
+            demo_status = "Prohibited / Unsafe URL"
+            fraud_signals.append("Demo URL failed safety validation.")
 
     # 3. Technology Match Analysis
     detected_tech = []
@@ -71,9 +74,9 @@ def verify_project_claim(project_claim: Dict[str, Any]) -> Dict[str, Any]:
     
     # 4. Project Ownership & Description Match Analysis
     desc_quality = "Comprehensive" if len(desc) > 60 else "Brief / Summary"
-    commit_activity = "Recent Activity Detected" if repo_url else "Offline / Not Visible"
+    commit_activity = "Not Checked"
     
-    confidence = 88.0 if repo_url else (72.0 if demo_url else 60.0)
+    confidence = 55.0 if evidence_sources else 40.0
     if fraud_signals:
         confidence = 25.0
 
@@ -81,20 +84,20 @@ def verify_project_claim(project_claim: Dict[str, Any]) -> Dict[str, Any]:
         "project_name": name,
         "description": desc,
         "claimed_technologies": claimed_tech,
-        "detected_technologies": list(set(claimed_tech + detected_tech)),
-        "repository_url": repo_url,
+        "detected_technologies": detected_tech,
+        "repository_url": clean_repo if repo_url and repo_status.startswith("Repository Link") else None,
         "repository_status": repo_status,
-        "demo_url": demo_url,
+        "demo_url": clean_demo if demo_url and demo_status.startswith("Demo Link") else None,
         "demo_status": demo_status,
         "technology_match": tech_match,
         "description_match": "High Match" if len(desc) > 30 else "Moderate Match",
-        "readme_quality": "Detailed" if len(desc) > 50 else "Standard",
+        "readme_quality": "Not Checked",
         "commit_activity": commit_activity,
         "source_tier": source_tier,
         "evidence_sources": evidence_sources,
         "fraud_signals": fraud_signals,
         "confidence_score": confidence,
-        "notes": f"Project verified with {len(evidence_sources)} digital evidence links." if evidence_sources else "No publicly discoverable repository link found on resume."
+        "notes": "Supplied claims and links require manual review; repository, commits, and demo content have not been fetched."
     }
 
 

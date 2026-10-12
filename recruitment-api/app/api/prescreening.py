@@ -6,7 +6,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.dependencies import get_current_user, require_hr
+from app.core.ownership import require_job_owner
+from app.core.dependencies import get_current_user, require_hr, require_password_changed
 from app.core.time import utc_now
 from app.models.job import Job
 from app.models.application import Application
@@ -15,25 +16,25 @@ from app.models.user import User
 from app.models.prescreening import JobPrescreeningQuestion, ApplicationPrescreeningEvaluation
 from app.services.prescreening.question_generator import generate_prescreening_questions
 from app.services.prescreening.response_evaluator import evaluate_prescreening_responses
-from app.services.blind_screening import is_blind_mode_requested, get_neutral_candidate_identifier, redact_text_pii
+from app.services.blind_screening import is_blind_mode_requested, get_neutral_candidate_identifier, redact_text_pii, sanitize_list_or_text
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/prescreening", tags=["prescreening"])
 
 
 class QuestionCreateRequest(BaseModel):
-    question_text: str = Field(..., min_length=5)
+    question_text: str = Field(..., min_length=5, max_length=4000)
     question_type: str = Field(default="technical", pattern="^(technical|scenario|practical|problem_solving)$")
-    category: Optional[str] = Field(default="Technical Skills")
-    scoring_criteria: Optional[str] = Field(default=None)
-    expected_concepts: Optional[List[str]] = Field(default_factory=list)
-    weight: Optional[float] = Field(default=1.0, ge=0.5, le=3.0)
-    is_required: Optional[bool] = Field(default=True)
-    is_active: Optional[bool] = Field(default=True)
+    category: str = Field(default="Technical Skills", max_length=200)
+    scoring_criteria: Optional[str] = Field(default=None, max_length=4000)
+    expected_concepts: List[str] = Field(default_factory=list, max_length=50)
+    weight: float = Field(default=1.0, ge=0.5, le=3.0, allow_inf_nan=False)
+    is_required: bool = True
+    is_active: bool = True
 
 
 class BulkQuestionsUpdateRequest(BaseModel):
-    questions: List[dict]
+    questions: List[QuestionCreateRequest] = Field(max_length=50)
 
 
 class CandidateAnswerItem(BaseModel):
@@ -50,7 +51,7 @@ class EvaluateAnswersRequest(BaseModel):
 def get_job_prescreening_questions(
     job_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_password_changed)
 ):
     """
     Retrieves all active pre-screening questions for a job.
@@ -59,6 +60,10 @@ def get_job_prescreening_questions(
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    if current_user.role == "hr":
+        require_job_owner(job, current_user)
+    elif current_user.role != "candidate" or job.status != "Active":
+        raise HTTPException(status_code=403, detail="This questionnaire is not available.")
 
     questions = db.query(JobPrescreeningQuestion).filter(
         JobPrescreeningQuestion.job_id == job_id,
@@ -72,8 +77,9 @@ def get_job_prescreening_questions(
             "question_text": q.question_text,
             "question_type": q.question_type,
             "category": q.category,
-            "scoring_criteria": q.scoring_criteria,
-            "expected_concepts": json.loads(q.expected_concepts) if q.expected_concepts else [],
+            **({"scoring_criteria": q.scoring_criteria,
+                "expected_concepts": json.loads(q.expected_concepts) if q.expected_concepts else []}
+               if current_user.role == "hr" else {}),
             "weight": q.weight,
             "is_required": q.is_required,
             "order_index": q.order_index
@@ -95,6 +101,7 @@ def generate_questions_for_job(
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    require_job_owner(job, current_user)
 
     generated = generate_prescreening_questions(
         title=job.title,
@@ -159,12 +166,14 @@ def update_job_questions(
     job = db.query(Job).filter(Job.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    require_job_owner(job, current_user)
 
     # Clear existing active questions for clean update
-    db.query(JobPrescreeningQuestion).filter(JobPrescreeningQuestion.job_id == job_id).delete()
+    db.query(JobPrescreeningQuestion).filter(JobPrescreeningQuestion.job_id == job_id).update({"is_active": False})
     
     saved_questions = []
-    for idx, q in enumerate(payload.questions):
+    for idx, question in enumerate(payload.questions):
+        q = question.model_dump()
         concepts = q.get("expected_concepts", [])
         concepts_json = json.dumps(concepts) if isinstance(concepts, list) else concepts
 
@@ -219,13 +228,14 @@ def get_application_evaluation(
     application = db.query(Application).filter(Application.id == application_id).first()
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
+    require_job_owner(db.query(Job).filter(Job.id == application.job_id).first(), current_user)
 
     candidate = db.query(Candidate).filter(Candidate.id == application.candidate_id).first()
     user = db.query(User).filter(User.id == candidate.user_id).first() if (candidate and candidate.user_id) else None
     
     is_blind = is_blind_mode_requested(request, blind_mode, current_user)
     neutral_id = get_neutral_candidate_identifier(candidate.id if candidate else 0)
-    cand_name = neutral_id if is_blind else ((user.full_name if user else None) or candidate.full_name or neutral_id)
+    cand_name = neutral_id if is_blind else ((user.full_name if user else None) or (candidate.full_name if candidate else None) or neutral_id)
 
     eval_rec = db.query(ApplicationPrescreeningEvaluation).filter(
         ApplicationPrescreeningEvaluation.application_id == application_id
@@ -246,7 +256,7 @@ def get_application_evaluation(
     if is_blind and summary:
         summary = redact_text_pii(summary, candidate_name=candidate.full_name if candidate else None, candidate_id=candidate.id if candidate else None)
 
-    return {
+    response = {
         "id": eval_rec.id,
         "application_id": eval_rec.application_id,
         "candidate_id": eval_rec.candidate_id,
@@ -262,3 +272,9 @@ def get_application_evaluation(
         "ai_source": eval_rec.ai_source,
         "created_at": eval_rec.created_at.isoformat() if eval_rec.created_at else None
     }
+    if is_blind:
+        response = sanitize_list_or_text(response, candidate_name=candidate.full_name if candidate else None, candidate_id=application.candidate_id)
+        if user:
+            response = sanitize_list_or_text(response, candidate_name=user.full_name, candidate_id=application.candidate_id)
+        response["candidate_name"] = neutral_id
+    return response

@@ -27,7 +27,9 @@ api.interceptors.request.use(
             url.includes('/search') ||
             url.includes('/ai/recruiter') ||
             url.includes('/verification') ||
-            url.includes('/prescreening')
+            url.includes('/prescreening') ||
+            url.includes('/analytics/events') ||
+            url.includes('/notifications')
           );
           const isExcluded = url.includes('/resumes/upload') || url.includes('/resumes/me/download') || url.includes('/auth/');
           if (isHrCandidateRoute && !isExcluded) {

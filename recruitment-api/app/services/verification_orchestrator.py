@@ -58,6 +58,8 @@ def run_full_verification_pipeline(
 
     # 1. Extract Structured Claims
     raw_claims = extract_all_candidate_claims(candidate, resume_parsed)
+    raw_claims["_verification_engine_version"] = 2
+    raw_claims["_resume_hash"] = resume.resume_hash if resume else None
     experiences = raw_claims.get("experiences", [])
     projects = raw_claims.get("projects", [])
     certifications = raw_claims.get("certifications", [])
@@ -175,6 +177,8 @@ def run_full_verification_pipeline(
             "outcome": existing.verification_outcome,
             "hr_decision": existing.hr_decision,
             "hr_decision_notes": existing.hr_decision_notes,
+            "hr_decided_by": existing.hr_decided_by,
+            "hr_decided_at": existing.hr_decided_at.isoformat() if existing.hr_decided_at else None,
             "verified_at": existing.updated_at.isoformat() if existing.updated_at else str(utc_now())
         })
 
@@ -186,6 +190,11 @@ def run_full_verification_pipeline(
     verification_rec.trust_score = trust_score
     verification_rec.verification_outcome = outcome
     verification_rec.confidence_label = conf_label
+    # A decision about a previous evidence snapshot must be reviewed again.
+    verification_rec.hr_decision = None
+    verification_rec.hr_decision_notes = None
+    verification_rec.hr_decided_by = None
+    verification_rec.hr_decided_at = None
     
     verification_rec.claims_json = json.dumps(raw_claims)
     verification_rec.company_verifications_json = json.dumps(company_verifications)
@@ -221,5 +230,5 @@ def run_full_verification_pipeline(
             "version": version
         }
     )
-
+    db.commit()
     return verification_rec

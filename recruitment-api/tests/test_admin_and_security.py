@@ -11,7 +11,6 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import inspect
 
-os.environ["DATABASE_URL"] = "sqlite:///./test.db"
 
 from app.core.database import SessionLocal, Base, engine, get_db
 from app.main import app
@@ -22,8 +21,6 @@ from app.models.activity_event import ActivityEvent
 from app.core.security import create_access_token, get_password_hash, verify_password
 
 # Recreate tables for an isolated test database
-Base.metadata.drop_all(bind=engine)
-Base.metadata.create_all(bind=engine)
 
 
 def override_get_db():

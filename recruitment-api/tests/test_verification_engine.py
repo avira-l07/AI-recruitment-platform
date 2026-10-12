@@ -2,15 +2,9 @@ import os
 import json
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock
 
 from app.core.rate_limit import rate_limiter
-rate_limiter.dependency = MagicMock(return_value=lambda: None)
 
-os.environ["SECRET_KEY"] = "test-only-secret-key-with-sufficient-length-for-hmac"
-os.environ["DATABASE_URL"] = "sqlite:///./test_verif.db"
-os.environ["SEED_DEFAULT_JOBS"] = "false"
-os.environ["ALLOW_PUBLIC_HR_REGISTRATION"] = "true"
 
 import app.models
 from app.core.database import SessionLocal, Base, engine, get_db
@@ -32,8 +26,6 @@ from app.services.trust_score_engine import calculate_trust_score
 from app.services.resume_authenticity_analyzer import analyze_resume_authenticity
 
 # Recreate clean tables
-Base.metadata.drop_all(bind=engine)
-Base.metadata.create_all(bind=engine)
 
 
 def override_get_db():
@@ -100,6 +92,11 @@ def setup_verif_data(client):
         db.commit()
         db.refresh(candidate)
         cand_id = candidate.id
+        job = Job(title="Verification Review", created_by=hr_id, status="Active")
+        db.add(job)
+        db.flush()
+        db.add(Application(candidate_id=cand_id, job_id=job.id))
+        db.commit()
 
         resume = Resume(
             candidate_id=candidate.id,
@@ -170,7 +167,8 @@ def test_claim_extraction():
 def test_company_and_source_tiering():
     # Tier 1 Official Org
     comp_res = verify_company_claim("Google", claimed_tech=["Python", "Go"])
-    assert comp_res["verification_status"] == "Verified"
+    assert comp_res["verification_status"] == "Known Organization"
+    assert comp_res["evidence_sources"][0]["supports_claim"] is False
     assert comp_res["confidence_score"] >= 90.0
     assert "Tier 1" in comp_res["evidence_sources"][0]["tier"]
 
@@ -179,7 +177,7 @@ def test_company_and_source_tiering():
         {"role_title": "Software Engineering Intern", "claimed_dates": "June 2024 - Aug 2024", "is_internship": True},
         comp_res
     )
-    assert intern_res["status"] in ["Verified", "Consistent"]
+    assert intern_res["status"] == "Needs HR Review"
     assert intern_res["duration_realistic"] is True
 
 
@@ -220,8 +218,10 @@ def test_project_and_repository_validation():
         "urls": ["https://github.com/sample/waste-platform", "https://waste-demo.vercel.app"]
     }
     res = verify_project_claim(proj)
-    assert res["repository_status"] == "Verified Repository"
-    assert res["demo_status"] == "Live Demo Accessible"
+    assert "Not Verified" in res["repository_status"]
+    assert "Not Verified" in res["demo_status"]
+    assert res["commit_activity"] == "Not Checked"
+    assert all(s["supports_claim"] is False for s in res["evidence_sources"])
     assert res["technology_match"] == "High Match"
     assert len(res["evidence_sources"]) == 2
 
@@ -244,8 +244,8 @@ def test_verification_api_endpoints_and_blind_mode(client, setup_verif_data):
     res_normal = client.get(f"/verification/candidate/{cand_id}", headers=headers)
     assert res_normal.status_code == 200
     data_normal = res_normal.json()
-    assert data_normal["trust_score"] >= 70.0
-    assert data_normal["verification_outcome"] in ["strong_evidence", "needs_review"]
+    assert 0 <= data_normal["trust_score"] <= 100
+    assert data_normal["verification_outcome"] == "needs_review"
     assert "Jordan VERIF_PERSON_99482 Lee" in data_normal["candidate_name"]
     assert len(data_normal["evidence_sources"]) >= 2
     assert len(data_normal["trust_score_breakdown"]) >= 4

@@ -93,17 +93,18 @@ def calculate_trust_score(
     total_score += tl_score
 
     # 5. Certifications & Discovered Evidence Depth (Max 10 pts)
-    independent_sources = [s for s in all_evidence_sources if "Tier 1" in s.get("tier", "") or "Tier 2" in s.get("tier", "")]
+    independent_sources = [s for s in all_evidence_sources if s.get("supports_claim") is True and ("Tier 1" in s.get("tier", "") or "Tier 2" in s.get("tier", ""))]
     candidate_sources = [s for s in all_evidence_sources if "Tier 3" in s.get("tier", "")]
     
-    cert_pts = min(6.0, len(certification_verifications) * 3.0)
+    verified_certs = [c for c in certification_verifications if c.get("status") == "Verified"]
+    cert_pts = min(6.0, len(verified_certs) * 3.0)
     evidence_pts = min(4.0, len(independent_sources) * 2.0 + len(candidate_sources) * 0.5)
     cred_score = round(cert_pts + evidence_pts, 1)
     breakdown.append({
         "component": "Credentials & Evidence Diversity",
         "points_earned": cred_score,
         "max_points": 10.0,
-        "explanation": f"{len(independent_sources)} independent source(s), {len(candidate_sources)} candidate-controlled source(s), {len(certification_verifications)} verified cert(s)."
+        "explanation": f"{len(independent_sources)} independent source(s), {len(candidate_sources)} candidate-controlled source(s), {len(verified_certs)} verified cert(s)."
     })
     total_score += cred_score
 
@@ -131,7 +132,7 @@ def calculate_trust_score(
     if all_fraud_flags or final_score < 40.0:
         outcome = "suspicious"
         conf_label = "Low"
-    elif final_score >= 80.0 and len(all_evidence_sources) >= 2:
+    elif final_score >= 80.0 and len(independent_sources) >= 2:
         outcome = "strong_evidence"
         conf_label = "High"
     elif len(all_evidence_sources) == 0:

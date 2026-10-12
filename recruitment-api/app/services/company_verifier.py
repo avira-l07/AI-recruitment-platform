@@ -19,7 +19,6 @@ KNOWN_VERIFIED_COMPANIES = {
     "stripe": {"name": "Stripe", "domain": "stripe.com", "tier": "Tier 1 — Official Organization", "tech": ["Ruby", "Python", "Go", "React", "PostgreSQL"]},
     "netflix": {"name": "Netflix", "domain": "netflix.com", "tier": "Tier 1 — Official Organization", "tech": ["Java", "Node.js", "React", "AWS", "Python"]},
     "uber": {"name": "Uber", "domain": "uber.com", "tier": "Tier 1 — Official Organization", "tech": ["Go", "Java", "Python", "Kafka", "React"]},
-    "abc technologies": {"name": "ABC Technologies", "domain": "abctechnologies.com", "tier": "Tier 1 — Official Organization", "tech": ["Python", "FastAPI", "React", "PostgreSQL"]},
 }
 
 SUSPICIOUS_DOMAINS_OR_PATTERNS = [
@@ -46,7 +45,7 @@ def verify_company_claim(company_name: str, claimed_urls: List[str] = None, clai
     # 1. Check known verified company registry
     matching_known = None
     for key, data in KNOWN_VERIFIED_COMPANIES.items():
-        if key in c_clean or c_clean in key:
+        if c_clean and c_clean == normalize_company_name(key):
             matching_known = data
             break
 
@@ -69,10 +68,10 @@ def verify_company_claim(company_name: str, claimed_urls: List[str] = None, clai
             "url": f"https://www.{domain}",
             "tier": matching_known["tier"],
             "category": "Official Organization",
-            "supports_claim": True,
+            "supports_claim": False,
             "contradiction": False,
             "reliability_score": 98,
-            "reason_used": "Verified institutional/corporate domain registered in enterprise knowledge base."
+            "reason_used": "Static company reference; candidate employment and live website validity have not been checked."
         })
         
         # Check technology alignment
@@ -81,10 +80,10 @@ def verify_company_claim(company_name: str, claimed_urls: List[str] = None, clai
         
         return {
             "company_name": matching_known["name"],
-            "verification_status": "Verified",
+            "verification_status": "High Risk" if fraud_signals else "Known Organization",
             "domain": domain,
             "official_website": f"https://www.{domain}",
-            "ssl_valid": True,
+            "ssl_valid": None,
             "business_presence": "Strong Public Footprint",
             "company_identity_consistency": "Strong",
             "technology_alignment": tech_match_status,
@@ -92,7 +91,7 @@ def verify_company_claim(company_name: str, claimed_urls: List[str] = None, clai
             "fraud_signals": fraud_signals,
             "evidence_sources": evidence_sources,
             "confidence_score": 94.0 if not fraud_signals else 40.0,
-            "notes": "Legitimate enterprise entity with verified public digital footprint."
+            "notes": "Company is in the local reference list; candidate employment requires HR review."
         }
 
     # 2. Company not in predefined list: Analyze domain signals & URLs provided
@@ -107,12 +106,12 @@ def verify_company_claim(company_name: str, claimed_urls: List[str] = None, clai
                     "source_id": f"src_url_{parsed.hostname[:8]}",
                     "title": f"{company_name} Referenced Domain ({parsed.hostname})",
                     "url": clean_u,
-                    "tier": "Tier 2 — Verified Independent" if "." in parsed.hostname else "Tier 4 — Low Confidence",
+                    "tier": "Tier 3 — Candidate-Controlled",
                     "category": "Web Domain",
-                    "supports_claim": True,
+                    "supports_claim": False,
                     "contradiction": False,
                     "reliability_score": 75,
-                    "reason_used": "Accessible web domain associated with claimed organization."
+                    "reason_used": "Candidate-supplied domain; association with the organization has not been checked."
                 })
                 break
 
@@ -139,7 +138,7 @@ def verify_company_claim(company_name: str, claimed_urls: List[str] = None, clai
             "verification_status": "Needs Review",
             "domain": company_domain,
             "official_website": f"https://{company_domain}",
-            "ssl_valid": True,
+            "ssl_valid": None,
             "business_presence": "Independent Domain Found",
             "company_identity_consistency": "Moderate",
             "technology_alignment": "Pending Review",
@@ -186,11 +185,11 @@ def verify_internship_authenticity(experience_claim: Dict[str, Any], company_ver
 
     evidence_found = comp_status in ["Verified", "Needs Review"] and duration_realistic
     
-    if comp_status == "Verified":
+    if comp_status in {"Verified", "Known Organization"}:
         alignment = "Strong"
-        status = "Verified" if is_intern else "Consistent"
+        status = "Needs HR Review"
         notes = f"Claimed role '{role}' is consistent with {company_verification.get('company_name')} technical hiring profile."
-        confidence = 88.0
+        confidence = 60.0
     elif comp_status == "High Risk":
         alignment = "Contradictory"
         status = "High Risk"

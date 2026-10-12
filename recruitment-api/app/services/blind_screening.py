@@ -128,13 +128,13 @@ def redact_text_pii(
     return sanitized
 
 
-def sanitize_list_or_text(val: Any, candidate_name: Optional[str] = None, candidate_id: Optional[int] = None) -> Any:
+def sanitize_list_or_text(val: Any, candidate_name: Optional[str] = None, candidate_id: Optional[int] = None, email: Optional[str] = None, phone: Optional[str] = None) -> Any:
     if isinstance(val, str):
-        return redact_text_pii(val, candidate_name=candidate_name, candidate_id=candidate_id)
+        return redact_text_pii(val, candidate_name=candidate_name, candidate_id=candidate_id, email=email, phone=phone)
     if isinstance(val, list):
-        return [sanitize_list_or_text(item, candidate_name=candidate_name, candidate_id=candidate_id) for item in val]
+        return [sanitize_list_or_text(item, candidate_name=candidate_name, candidate_id=candidate_id, email=email, phone=phone) for item in val]
     if isinstance(val, dict):
-        return {k: sanitize_list_or_text(v, candidate_name=candidate_name, candidate_id=candidate_id) for k, v in val.items()}
+        return {k: None if k in {"url", "repository_url", "demo_url", "verification_url", "official_website"} else sanitize_list_or_text(v, candidate_name=candidate_name, candidate_id=candidate_id, email=email, phone=phone) for k, v in val.items()}
     return val
 
 
@@ -214,7 +214,7 @@ def build_blind_candidate_representation(
         "prescreening_label": payload.get("prescreening_label"),
         "has_prescreening": payload.get("has_prescreening", False),
     }
-    return blind_rep
+    return sanitize_list_or_text(blind_rep, candidate_name=cname, candidate_id=cid, email=cemail, phone=cphone)
 
 
 def sanitize_parsed_resume(parsed_data: dict, candidate_id: Optional[int] = None) -> dict:
@@ -248,4 +248,4 @@ def sanitize_parsed_resume(parsed_data: dict, candidate_id: Optional[int] = None
         ),
         "is_blind_mode": True,
     }
-    return sanitized
+    return sanitize_list_or_text(sanitized, candidate_name=original_name, candidate_id=candidate_id, email=original_email, phone=original_phone)

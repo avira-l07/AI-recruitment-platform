@@ -14,7 +14,6 @@ from app.services.prescreening.question_generator import generate_prescreening_q
 from app.services.prescreening.response_evaluator import evaluate_prescreening_responses
 
 # Recreate clean tables
-Base.metadata.create_all(bind=engine)
 
 
 @pytest.fixture(scope="function")
@@ -148,10 +147,10 @@ def test_prescreening_api_and_application_integration(client, db_session):
         "job_id": job.id,
         "prescreening_answers": [
             {
-                "question_id": q1["id"],
-                "question_text": q1["question_text"],
+                "question_id": q["id"],
+                "question_text": q["question_text"],
                 "answer_text": "I design FastAPI microservices utilizing Pydantic models for strict data validation, dependency injection for SQLAlchemy sessions, and automated OpenAPI documentation."
-            }
+            } for q in get_res.json()
         ]
     }, headers={"Authorization": f"Bearer {cand_token}"})
     assert apply_res.status_code == 200

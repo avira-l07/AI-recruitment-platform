@@ -1,6 +1,7 @@
 import json
 import re
 import logging
+import math
 from typing import Dict, List, Any, Optional
 from app.ai.gemini_client import call_gemini_json
 from app.services.blind_screening import redact_text_pii
@@ -126,6 +127,7 @@ def evaluate_prescreening_responses(
             "question_id": qid,
             "question_text": qtext,
             "question_type": qtype,
+            "scoring_criteria": criteria,
             "category": q.get("category", "Technical Skills"),
             "candidate_answer": cand_ans,
             "score": eval_item["score"],
@@ -186,6 +188,12 @@ Provide a refined evaluation JSON with keys:
             g_score = float(gemini_res.get("overall_score", overall_score))
             g_label = gemini_res.get("overall_label", overall_label)
             g_summary = gemini_res.get("summary", summary)
+            if not math.isfinite(g_score):
+                raise ValueError("AI score must be finite")
+            g_score = max(10.0, min(99.0, round(0.75 * overall_score + 0.25 * max(0, min(100, g_score)), 1)))
+            g_label = "Strong" if g_score >= 80 else "Competent" if g_score >= 60 else "Developing" if g_score >= 40 else "Needs Review"
+            if not isinstance(g_summary, str):
+                raise ValueError("AI summary must be text")
             if is_blind_mode:
                 g_summary = redact_text_pii(g_summary, candidate_id=None)
             

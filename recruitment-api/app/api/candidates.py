@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.ownership import hr_candidate_query, require_candidate_access
 from app.core.dependencies import get_current_user, require_candidate, require_hr
 from app.models.candidate import Candidate
 from app.models.user import User
@@ -29,7 +30,7 @@ def _candidate_to_blind_dict(cand: Candidate) -> dict:
         "experience": sanitize_experience(cand.experience),
         "skills": cand.skills,
         "projects": sanitize_list_or_text(cand.projects, candidate_name=cand.full_name, candidate_id=cand.id),
-        "certifications": cand.certifications,
+        "certifications": sanitize_list_or_text(cand.certifications, candidate_name=cand.full_name, candidate_id=cand.id),
     }
 
 
@@ -45,6 +46,7 @@ def get_all_candidates(
     blind = is_blind_mode_requested(request, blind_mode, current_user)
     candidates = (
         db.query(Candidate)
+        .filter(Candidate.id.in_(hr_candidate_query(db, current_user.id)))
         .order_by(Candidate.id.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
@@ -77,8 +79,7 @@ def get_candidate(
     candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidate not found.")
-    if current_user.role != "hr" and candidate.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="You cannot access this candidate profile.")
+    require_candidate_access(db, current_user, candidate)
     
     if current_user.role == "hr" and is_blind_mode_requested(request, blind_mode, current_user):
         return _candidate_to_blind_dict(candidate)

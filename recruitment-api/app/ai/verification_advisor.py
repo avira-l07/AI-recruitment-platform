@@ -35,6 +35,10 @@ def generate_local_hybrid_reasoning(
         if comp.get("verification_status") == "Verified":
             verified_facts.append(f"Institutional existence of {cname} verified via official domain {comp.get('domain')}.")
             supporting_evidence.append(f"Official web presence confirmed for {cname} with matching technology stack.")
+        elif comp.get("verification_status") == "Known Organization":
+            supporting_evidence.append(f"{cname} appears in the local company reference list; employment is not verified.")
+            missing_evidence.append(f"Candidate employment at {cname} requires independent confirmation.")
+            hr_followup_questions.append(f"Request offer letter or supervisor reference for {cname}.")
         else:
             missing_evidence.append(f"Independent public listing for {cname} was not found (private entity / startup).")
             hr_followup_questions.append(f"Request offer letter or supervisor reference for internship at {cname}.")
@@ -43,8 +47,8 @@ def generate_local_hybrid_reasoning(
     for proj in project_verifications:
         pname = proj.get("project_name", "Project")
         if proj.get("repository_url"):
-            verified_facts.append(f"Public Git repository accessible for '{pname}' ({proj.get('technology_match')}).")
-            supporting_evidence.append(f"Repository link verified for '{pname}' with consistent technical description.")
+            supporting_evidence.append(f"Candidate supplied a repository URL for '{pname}'; accessibility and ownership are not verified.")
+            missing_evidence.append(f"Repository contents and activity for '{pname}' have not been checked.")
             suggested_interview_questions.append(f"Ask candidate to walk through the architecture and pull requests of project '{pname}'.")
         else:
             missing_evidence.append(f"No public repository link discovered on resume for project '{pname}'.")
@@ -56,7 +60,7 @@ def generate_local_hybrid_reasoning(
         if cert.get("status") == "Verified":
             verified_facts.append(f"Professional credential '{cname}' issued by {cert.get('provider')} verified.")
         else:
-            missing_evidence.append(f"Verification link or credential ID was not provided on resume for '{cname}'.")
+            missing_evidence.append(f"Credential validity and ownership for '{cname}' require issuer or HR confirmation.")
 
     # 4. Summary & Risk
     if outcome == "strong_evidence":
@@ -67,7 +71,7 @@ def generate_local_hybrid_reasoning(
         summary = f"{candidate_identifier}'s profile contains potential contradictions or unreachable domains requiring detailed manual HR review."
     else:
         risk_explanation = "Moderate Risk / Standard Review. Claims correspond to private/unindexed organizations or offline projects."
-        summary = f"{candidate_identifier} has legitimate technical claims that require standard HR verification (e.g. reviewing supervisor references or project code)."
+        summary = f"{candidate_identifier} has submitted technical claims that require HR verification of supervisor references, credentials, and project code."
 
     return {
         "verified_facts": verified_facts if verified_facts else ["Basic technical profile extracted from submitted resume."],
@@ -132,7 +136,7 @@ EVIDENCE FACTS:
 - Contradictions / Fraud Signals: {json.dumps(fraud_flags)}
 
 CRITICAL INSTRUCTIONS:
-1. ONLY reference evidence present in the data above. Do NOT invent URLs, companies, or facts.
+1. ONLY reference evidence present in the data above. Do NOT invent URLs, companies, or facts. A supplied link or static reference is not proof of accessibility, employment, ownership, or certification. Respect supports_claim=false.
 2. If evidence is missing for a private internship, note it constructively for HR review; never call absence of public listing "fraud".
 3. Return STRICT JSON with the following keys:
    - "verified_facts": List[str]

@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Send, Sparkles, AlertCircle, HelpCircle, CheckCircle2, Loader2, Layers } from 'lucide-react';
 import './CandidatePrescreeningModal.css';
 
 const CandidatePrescreeningModal = ({ isOpen, onClose, job, questions = [], onSubmit, isSubmitting = false }) => {
   const [answers, setAnswers] = useState({});
   const [error, setError] = useState('');
+  useEffect(() => {
+    setAnswers({});
+    setError('');
+  }, [job?.id, isOpen]);
 
   if (!isOpen || !job) return null;
 
@@ -24,7 +28,7 @@ const CandidatePrescreeningModal = ({ isOpen, onClose, job, questions = [], onSu
       }
     }
 
-    const payloadAnswers = questions.map(q => ({
+    const payloadAnswers = questions.filter(q => answers[q.id]?.trim()).map(q => ({
       question_id: q.id,
       question_text: q.question_text,
       answer_text: answers[q.id] || ''
@@ -89,6 +93,7 @@ const CandidatePrescreeningModal = ({ isOpen, onClose, job, questions = [], onSu
                     <textarea
                       className="cand-ps-textarea"
                       rows="4"
+                      maxLength={10000}
                       required={q.is_required}
                       disabled={isSubmitting}
                       placeholder="Type your structured explanation and practical approach here..."

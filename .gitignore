@@ -9,6 +9,8 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .venv/
+.audit-deps/
+resolved-requirements.json
 venv/
 
 # Databases and private uploads
